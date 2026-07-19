@@ -20,3 +20,6 @@ export { mulberry32, pickDistinct } from './random'
 export { djb2 } from './random'
 export { playGame, simulateGames, type SimResult, type Suggester } from './simulate'
 export { openerKey, suggest } from './solver'
+export {
+  findContradictions, gameFileTemplate, hasGuessLines, parseGameFile, unknownWords, type ParsedGameFile,
+} from './gamefile'

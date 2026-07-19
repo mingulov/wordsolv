@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "bench": "npm exec -w @wordlesolv/solver-core tsx bin/simulate.ts --"
+    "bench": "npm exec -w @wordlesolv/solver-core tsx bin/simulate.ts --",
+    "solve": "npm exec -w @wordlesolv/solver-core tsx bin/solve.ts --"
   }
 }

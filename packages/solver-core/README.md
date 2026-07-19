@@ -168,3 +168,32 @@ npm run bench -- --lang ru --len 5 --boards 4 --games 1000 --seed 7 --mode deep
 See `BENCHMARKS.md` for recorded results and `src/benchmark.test.ts` for
 the CI-enforced statistical regression gates (seeded 200-game runs with a
 floor set below measured performance for statistical headroom).
+
+## File-based assistant CLI
+
+`bin/solve.ts` drives the solver from a plain-text game file — edit it in
+any external editor, save, and re-run to get board statuses and the next
+best guesses. No interactive input.
+
+```bash
+npm run solve -- game.txt                  # solve once and print
+npm run solve -- game.txt --init ru-5x4    # write a fresh template
+npm run solve -- game.txt --watch          # re-solve on every save
+```
+
+File format — one header block, then one line per guess (word + one color
+group per board):
+
+```
+lang ru
+len 5
+boards 4
+
+серна +*--- ----- +--*- -----
+копал ----- *--+- . *----
+```
+
+Symbols: `+` correct place, `*` in word/wrong place, `-` not in word (also
+`G`/`Y`/`X` or `2`/`1`/`0`); a lone `.` means "board already solved, skip".
+`--watch` (`fs.watchFile`, 1 s poll) pairs naturally with editing the file
+in your editor of choice — save it there and the terminal re-renders.
