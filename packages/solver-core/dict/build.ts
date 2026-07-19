@@ -5,7 +5,14 @@ import { makeDictionary, normalizeWord, serializeDict } from '../src/dictionary'
 import type { Language } from '../src/types'
 
 const HERE = import.meta.dirname
-const T1_CAP = 3500
+/**
+ * T1 (answer-priority) cap. EN: enable1 is huge and real games draw answers
+ * from common words — cap at 3500 (the curated-answers bet). RU: the base
+ * list is nouns-only (≈7k at the largest length) and the full-corpus ranks
+ * carry the prior, so every ranked noun gets answer priority.
+ */
+const T1_CAP: Record<Language, number> = { en: 3500, ru: Number.POSITIVE_INFINITY }
+const RANK_SOURCE: Record<Language, string> = { en: 'en_50k.txt', ru: 'ru_full.txt' }
 const LENGTHS = [4, 5, 6, 7, 8]
 
 function readLines(name: string): string[] {
@@ -38,9 +45,12 @@ function build(lang: Language, base: Set<string>, ranks: Map<string, number>): v
     const ranked = all
       .filter((w) => ranks.has(w))
       .sort((a, b) => ranks.get(a)! - ranks.get(b)!)
-    const t1 = ranked.slice(0, T1_CAP)
+    const t1 = ranked.slice(0, T1_CAP[lang])
     const t1Set = new Set(t1)
     const t2 = all.filter((w) => !t1Set.has(w)).sort()
+    if (lang === 'ru' && len === 5)
+      for (const w of ['качка', 'кадка'])
+        if (!t1Set.has(w)) throw new Error(`ru-5 calibration check failed: "${w}" must be in T1`)
     const dict = makeDictionary(lang, len, t1, t2)
     const out = join(HERE, 'assets', `${lang}-${len}.txt`)
     writeFileSync(out, serializeDict(dict))
@@ -51,5 +61,5 @@ function build(lang: Language, base: Set<string>, ranks: Map<string, number>): v
 }
 
 mkdirSync(join(HERE, 'assets'), { recursive: true })
-build('en', baseWords('en', 'enable1.txt'), freqRanks('en', 'en_50k.txt'))
-build('ru', baseWords('ru', 'russian_nouns.txt'), freqRanks('ru', 'ru_50k.txt'))
+build('en', baseWords('en', 'enable1.txt'), freqRanks('en', RANK_SOURCE.en))
+build('ru', baseWords('ru', 'russian_nouns.txt'), freqRanks('ru', RANK_SOURCE.ru))

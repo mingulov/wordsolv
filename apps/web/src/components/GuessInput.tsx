@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { normalizeWord, type Language } from '@wordlesolv/solver-core'
 import { useI18n } from '../i18n'
 
@@ -6,6 +6,7 @@ const KEYS: Record<Language, string[]> = {
   en: ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'],
   ru: ['йцукенгшщзхъ', 'фывапролджэ', 'ячсмитьбю'],
 }
+const COLS: Record<Language, number> = { en: 10, ru: 12 }
 
 interface Props {
   language: Language
@@ -54,9 +55,9 @@ export function GuessInput({ language, wordLength, onCommit, prefill }: Props): 
         </button>
       </div>
       {warn && <p className="banner warn">{warn}</p>}
-      <div className="keyboard">
+      <div className="keyboard" style={{ '--kb-cols': COLS[language] } as CSSProperties}>
         {KEYS[language].map((rowKeys) => (
-          <div className="row" key={rowKeys}>
+          <div className="kb-row" key={rowKeys}>
             {Array.from(rowKeys).map((k) => (
               <button
                 key={k}
@@ -67,7 +68,7 @@ export function GuessInput({ language, wordLength, onCommit, prefill }: Props): 
               </button>
             ))}
             {rowKeys === KEYS[language][KEYS[language].length - 1] && (
-              <button onClick={() => setValue((v) => v.slice(0, -1))}>⌫</button>
+              <button className="kb-wide" onClick={() => setValue((v) => v.slice(0, -1))}>⌫</button>
             )}
           </div>
         ))}

@@ -39,9 +39,9 @@ it('delivers the latest result and drops stale replies', () => {
   act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt'))
   const w = FakeWorker.instances[0]
   expect(w.posted).toHaveLength(2)
-  act(() => w.emit({ id: 1, type: 'result', result: RESULT, effectiveMode: 'deep', contradictions: [], unknownGuesses: [] }))
+  act(() => w.emit({ id: 1, type: 'result', result: RESULT, effectiveMode: 'deep', contradictions: [], unknownGuesses: [], ratings: [], repairs: [] }))
   expect(result.current.reply).toBeNull() // stale id 1 ignored
-  act(() => w.emit({ id: 2, type: 'result', result: RESULT, effectiveMode: 'lite', contradictions: [], unknownGuesses: [] }))
+  act(() => w.emit({ id: 2, type: 'result', result: RESULT, effectiveMode: 'lite', contradictions: [], unknownGuesses: [], ratings: [], repairs: [] }))
   expect(result.current.reply?.effectiveMode).toBe('lite')
 })
 

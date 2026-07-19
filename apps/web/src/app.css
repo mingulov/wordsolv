@@ -90,7 +90,21 @@ select, input[type='text'], input[type='number'], textarea {
 .row-tools { display: inline-flex; gap: 4px; margin-left: 6px; }
 .row-tools button { font-size: 0.75em; padding: 2px 6px; }
 .candidates { font-size: 0.85em; color: var(--fg-dim); }
-.keyboard button { min-width: 2em; padding: 8px 4px; text-transform: uppercase; }
+.keyboard { display: flex; flex-direction: column; gap: 4px; }
+.kb-row { display: flex; justify-content: center; flex-wrap: nowrap; gap: 4px; }
+.keyboard button {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: min(2.4em, calc((100% - (var(--kb-cols) - 1) * 4px) / var(--kb-cols)));
+  min-width: 0;
+  padding: 8px 0;
+  text-transform: uppercase;
+  text-align: center;
+  touch-action: manipulation;
+}
+.keyboard button.kb-wide {
+  width: min(3.6em, calc(1.5 * (100% - (var(--kb-cols) - 1) * 4px) / var(--kb-cols)));
+}
 .suggestions ol { padding-left: 1.4em; }
 .suggestions button { border: none; background: none; padding: 4px; text-align: left; }
 .suggestions .dim { color: var(--fg-dim); font-size: 0.85em; }
@@ -98,3 +112,7 @@ select, input[type='text'], input[type='number'], textarea {
 :root[data-cb='on'] .suggestions .badge { text-decoration: underline; }
 .spin { font-weight: 400; font-size: 0.7em; color: var(--fg-dim); }
 .guess-input input { text-transform: uppercase; letter-spacing: 0.2em; width: 10em; }
+.tile.suspect { outline: 2px dashed var(--danger); outline-offset: 1px; }
+.repair-hint { font-size: 0.85em; color: var(--fg-dim); }
+.quality ol { padding-left: 1.4em; }
+.quality .dim { color: var(--fg-dim); font-size: 0.85em; }

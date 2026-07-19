@@ -23,21 +23,7 @@ the raw files as downloaded are recorded in `dict/raw/checksums.txt`.
 
 - URL: `https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt`
 - Download date: 2026-07-18
-- License: MIT License, Copyright (c) 2016 Hermit Dave. Read directly from
-  `https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/LICENSE`:
-  ```
-  MIT License
-
-  Copyright (c) 2016 Hermit Dave
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-  ...
-  ```
+- License: CC-BY-SA-4.0 (content license of hermitdave/FrequencyWords).
 - What we derive: frequency ranking (`word count` per line, frequency-descending)
   used to split English words into T1 (top `T1_CAP` by frequency) vs T2
   (everything else, alphabetical) per length.
@@ -46,10 +32,17 @@ the raw files as downloaded are recorded in `dict/raw/checksums.txt`.
 
 - URL: `https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/ru/ru_50k.txt`
 - Download date: 2026-07-18
-- License: same MIT License as source 2 above (same repo,
-  `FrequencyWords/master/LICENSE`, Copyright (c) 2016 Hermit Dave).
-- What we derive: frequency ranking for Russian words, same role as source 2
-  but for the `ru` language dictionaries.
+- License: CC-BY-SA-4.0 (content license of hermitdave/FrequencyWords).
+- What we derive: frequency ranking for Russian words (previously used, now superseded by ru_full).
+
+## 3a. FrequencyWords — Russian (ru_full)
+
+- URL: `https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/ru/ru_full.txt`
+- Download date: 2026-07-19
+- License: CC-BY-SA-4.0 (content license of hermitdave/FrequencyWords).
+- What we derive: frequency ranking for Russian words, used for RU T1 ordering.
+  The top-50k file lacks thousands of valid nouns (e.g. «качка», «кадка»),
+  which mis-tiered them. The full list ensures every ranked noun gets answer priority.
 
 ## 4. Harrix Russian-Nouns
 
@@ -78,6 +71,4 @@ the raw files as downloaded are recorded in `dict/raw/checksums.txt`.
 
 ## Attribution
 
-All four sources are permissively licensed (public domain / MIT) and require
-only attribution (MIT) or no restriction at all (public domain). This file is
-the record of that attribution and feeds the app's attribution page.
+Five sources contribute to the bundled dictionaries, under three distinct licenses: ENABLE1 is public domain; Harrix/Russian-Nouns is MIT (Copyright © 2018-present Sergienko Anton); the three hermitdave/FrequencyWords lists (en_50k, ru_50k, ru_full) are CC-BY-SA-4.0, which requires attribution and ShareAlike. This file records the licensing and attribution details required by each source.

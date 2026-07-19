@@ -18,7 +18,7 @@ it('tile click dispatches cycleTile with board/row/pos', () => {
     <I18nProvider lang="en">
       <BoardCard
         state={s.session.state} board={0} dispatch={dispatch} recheckRows={[]}
-        summary={null} contradiction={null} expanded onToggle={() => {}}
+        summary={null} contradiction={null} expanded onToggle={() => {}} repairs={[]}
       />
     </I18nProvider>,
   )
@@ -35,9 +35,23 @@ it('derived rows render disabled tiles', () => {
     <I18nProvider lang="en">
       <BoardCard
         state={s.session.state} board={0} dispatch={vi.fn()} recheckRows={[]}
-        summary={null} contradiction={null} expanded onToggle={() => {}}
+        summary={null} contradiction={null} expanded onToggle={() => {}} repairs={[]}
       />
     </I18nProvider>,
   )
   expect((screen.getByTestId('tile-0-1-0') as HTMLButtonElement).disabled).toBe(true)
+})
+
+it('row tools appear only on the newest editable row', () => {
+  let s = ui()
+  s = gameReducer(s, { type: 'commitGuess', word: 'cat' }) // two guesses, board unsolved
+  render(
+    <I18nProvider lang="en">
+      <BoardCard
+        state={s.session.state} board={0} dispatch={vi.fn()} recheckRows={[]}
+        summary={null} contradiction={null} repairs={[]} expanded onToggle={() => {}}
+      />
+    </I18nProvider>,
+  )
+  expect(screen.getAllByText('all gray')).toHaveLength(1)
 })

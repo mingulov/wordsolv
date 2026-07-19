@@ -91,6 +91,56 @@ export function boardCandidatesOf(state: GameState, dict: Dictionary): BoardCand
   })
 }
 
+export interface ScoredWord { word: string; idx: number; score: number; isCandidateFor: number[] }
+
+/** Score of one word against a set of unsolved boards (urgency × entropy + solve bonus). */
+export function scoreWordAgainst(
+  word: string,
+  wordIdx: number | undefined,
+  unsolved: { bc: BoardCandidates; b: number }[],
+  guessesLeft: number,
+  table: PatternTable | null,
+): { score: number; isCandidateFor: number[] } {
+  let score = 0
+  const isCandidateFor: number[] = []
+  for (const { bc, b } of unsolved) {
+    const urgency = 1 + (URGENCY_WEIGHT * Math.log2(bc.candidates.length + 1)) / Math.max(1, guessesLeft)
+    const h = table && wordIdx !== undefined
+      ? entropyOfIdx(wordIdx, bc.candIdx, bc.weights, table)
+      : entropyOf(word, bc.candidates, bc.weights)
+    score += urgency * h
+    const ci = bc.candidates.indexOf(word)
+    if (ci !== -1) {
+      let total = 0
+      for (const w of bc.weights) total += w
+      score += SOLVE_BONUS * (bc.weights[ci] / total)
+      isCandidateFor.push(b)
+    }
+  }
+  return { score, isCandidateFor }
+}
+
+/** All dictionary words scored 1-ply against `state`, sorted best-first. */
+export function scoreAllWords(
+  state: GameState,
+  dict: Dictionary,
+  table?: PatternTable | null,
+): { scored: ScoredWord[]; boards: BoardCandidates[] } {
+  const boards = boardCandidatesOf(state, dict)
+  const guessesLeft = state.maxGuesses - state.guesses.length
+  const unsolved = boards
+    .map((bc, b) => ({ bc, b }))
+    .filter(({ bc }) => bc.solvedWord === null && bc.candidates.length > 0)
+  const scored: ScoredWord[] = []
+  for (let idx = 0; idx < dict.words.length; idx++) {
+    const g = dict.words[idx]
+    const { score, isCandidateFor } = scoreWordAgainst(g, idx, unsolved, guessesLeft, table ?? null)
+    scored.push({ word: g, idx, score, isCandidateFor })
+  }
+  scored.sort((a, b) => b.score - a.score || a.idx - b.idx)
+  return { scored, boards }
+}
+
 export function suggestEntropy(
   state: GameState,
   dict: Dictionary,
@@ -98,37 +148,13 @@ export function suggestEntropy(
   table?: PatternTable | null,
   seedText = '',
 ): Suggestion[] {
-  const boards = boardCandidatesOf(state, dict)
-  const guessesLeft = state.maxGuesses - state.guesses.length
+  const { scored, boards } = scoreAllWords(state, dict, table)
   const unsolved = boards
     .map((bc, b) => ({ bc, b }))
     .filter(({ bc }) => bc.solvedWord === null && bc.candidates.length > 0)
-
-  const scored: { word: string; idx: number; score: number; isCandidateFor: number[] }[] = []
-  for (let idx = 0; idx < dict.words.length; idx++) {
-    const g = dict.words[idx]
-    let score = 0
-    const isCandidateFor: number[] = []
-    for (const { bc, b } of unsolved) {
-      const urgency = 1 + (URGENCY_WEIGHT * Math.log2(bc.candidates.length + 1)) / Math.max(1, guessesLeft)
-      const h = table ? entropyOfIdx(idx, bc.candIdx, bc.weights, table) : entropyOf(g, bc.candidates, bc.weights)
-      score += urgency * h
-      const ci = bc.candidates.indexOf(g)
-      if (ci !== -1) {
-        let total = 0
-        for (const w of bc.weights) total += w
-        score += SOLVE_BONUS * (bc.weights[ci] / total)
-        isCandidateFor.push(b)
-      }
-    }
-    scored.push({ word: g, idx, score, isCandidateFor })
-  }
-  scored.sort((a, b) => b.score - a.score || a.idx - b.idx)
-
   if (opts.twoPly && table && unsolved.every(({ bc }) => bc.candidates.length <= TWO_PLY_MAX_BOARD)) {
     refineTwoPly(scored, unsolved, dict, opts, table, seedText, state.guesses)
   }
-
   return scored.slice(0, opts.topN).map((s) => ({
     word: s.word,
     score: s.score,
@@ -141,7 +167,7 @@ const TWO_PLY_PROBES = 30
 const TWO_PLY_MAX_BOARD = 1500
 
 function refineTwoPly(
-  ranked: { word: string; idx: number; score: number; isCandidateFor: number[] }[],
+  ranked: ScoredWord[],
   unsolved: { bc: BoardCandidates; b: number }[],
   dict: Dictionary,
   opts: SolverOptions,

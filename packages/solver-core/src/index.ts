@@ -11,9 +11,11 @@ export {
   type SolverOptions, type Suggestion,
 } from './types'
 export {
-  SOLVE_BONUS, URGENCY_WEIGHT, boardCandidatesOf, entropyOf, entropyOfIdx, suggestEntropy, weightsFor,
-  type BoardCandidates,
+  SOLVE_BONUS, URGENCY_WEIGHT, boardCandidatesOf, entropyOf, entropyOfIdx, scoreAllWords, scoreWordAgainst, suggestEntropy, weightsFor,
+  type BoardCandidates, type ScoredWord,
 } from './entropy'
+export { rateGuessRow, rateGuesses, type GuessRating } from './rate'
+export { suggestRepairs, type TileRepair } from './repair'
 export { endgameSearch, type EndgameResult } from './endgame'
 export { buildPatternTable, DEFAULT_TABLE_BYTES, type PatternTable } from './patternTable'
 export { mulberry32, pickDistinct } from './random'

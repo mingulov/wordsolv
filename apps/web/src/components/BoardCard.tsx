@@ -1,5 +1,5 @@
 import type { Dispatch } from 'react'
-import type { BoardSummary, GameState } from '@wordlesolv/solver-core'
+import type { BoardSummary, GameState, TileRepair } from '@wordlesolv/solver-core'
 import { useI18n } from '../i18n'
 import { isRowDerived, solveRowOf, type GameAction } from '../state/gameReducer'
 
@@ -16,11 +16,13 @@ interface Props {
   contradiction: number | null
   expanded: boolean
   onToggle: () => void
+  repairs: TileRepair[]
 }
 
-export function BoardCard({ state, board, dispatch, recheckRows, summary, contradiction, expanded, onToggle }: Props): JSX.Element {
+export function BoardCard({ state, board, dispatch, recheckRows, summary, contradiction, expanded, onToggle, repairs }: Props): JSX.Element {
   const { t } = useI18n()
   const sr = solveRowOf(state, board)
+  const suspect = contradiction !== null && repairs.length > 0 ? repairs[0] : null
 
   const chip = (): string => {
     if (contradiction !== null) return `⚠ ${t('game.contradiction')} ${contradiction + 1}`
@@ -53,7 +55,8 @@ export function BoardCard({ state, board, dispatch, recheckRows, summary, contra
                     <button
                       key={pos}
                       data-testid={`tile-${board}-${row}-${pos}`}
-                      className={`tile ${COLOR[digit]}${derived ? ' derived' : ''}`}
+                      className={`tile ${COLOR[digit]}${derived ? ' derived' : ''}${
+                        suspect && suspect.guessIndex === row && suspect.pos === pos ? ' suspect' : ''}`}
                       disabled={derived}
                       aria-label={`${ch} — ${t(TILE_KEY[digit])}`}
                       onClick={() => dispatch({ type: 'cycleTile', board, row, pos })}
@@ -63,7 +66,7 @@ export function BoardCard({ state, board, dispatch, recheckRows, summary, contra
                     </button>
                   )
                 })}
-                {!derived && (
+                {!derived && row === state.guesses.length - 1 && (
                   <span className="row-tools">
                     <button onClick={() => dispatch({ type: 'setRowAllGray', board, row })}>{t('game.allGray')}</button>
                     {board !== 0 && (
@@ -76,6 +79,15 @@ export function BoardCard({ state, board, dispatch, recheckRows, summary, contra
               </div>
             )
           })}
+          {contradiction !== null && (
+            <p className="repair-hint" data-testid={`repair-hint-${board}`}>
+              {repairs.length > 0
+                ? `${t('game.noMatch')}: ${repairs.slice(0, 3).map((r) =>
+                    `«${state.guesses[r.guessIndex]}» — ${state.guesses[r.guessIndex][r.pos]} (${r.pos + 1}): ${GLYPH[r.from]} → ${GLYPH[r.to]}`,
+                  ).join('; ')}`
+                : t('game.noMatchManual')}
+            </p>
+          )}
           {summary && summary.candidatesLeft > 0 && summary.candidatesLeft <= 20 && (
             <p className="candidates">{summary.candidates.join(', ')}</p>
           )}

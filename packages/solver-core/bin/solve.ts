@@ -12,6 +12,8 @@ import { allGreen } from '../src/pattern'
 import { buildPatternTable, type PatternTable } from '../src/patternTable'
 import { suggest } from '../src/solver'
 import { defaultOptions, type Language } from '../src/types'
+import { rateGuesses } from '../src/rate'
+import { suggestRepairs } from '../src/repair'
 
 const NO_COLOR = 'NO_COLOR' in process.env
 const args = process.argv.slice(2)
@@ -125,6 +127,7 @@ function run(): void {
     console.log(`warning: "${w}" is not in the ${state.language}-${state.wordLength} dictionary`)
 
   const contradictions = findContradictions(state, dict)
+  const repairs = contradictions.length > 0 ? suggestRepairs(state, dict) : []
   result.boards.forEach((b, i) => {
     if (b.solvedWord !== null) {
       const guessNum = state.boards[i].feedback.indexOf(allGreen(state.wordLength)) + 1
@@ -135,12 +138,29 @@ function run(): void {
       const c = contradictions.find((x) => x.board === i)
       const at = c ? ` — first conflict at guess ${c.guessIndex + 1} ("${state.guesses[c.guessIndex]}", line ${guessLines[c.guessIndex]})` : ''
       console.log(C.bold(`board ${i + 1}: CONTRADICTION, no word matches${at} — check that row's colors`))
+      for (const r of repairs.filter((x) => x.board === i).slice(0, 3))
+        console.log(
+          `  fix? guess ${r.guessIndex + 1} "${state.guesses[r.guessIndex]}" letter ${r.pos + 1}` +
+          ` ('${state.guesses[r.guessIndex][r.pos]}'): ${SYM[r.from]} → ${SYM[r.to]}  (${r.candidatesAfter} candidate(s))`,
+        )
     } else {
       const tier = b.tier === 2 ? ' (widened to broad dictionary)' : ''
       const list = b.candidatesLeft <= 20 ? `: ${b.candidates.join(', ')}` : ''
       console.log(`board ${i + 1}: ${b.candidatesLeft} candidate(s)${tier}${list}`)
     }
   })
+
+  const ratings = rateGuesses(state, dict, opts, table)
+  if (ratings.length > 0) {
+    console.log(`\n${C.bold('your guesses')}:`)
+    ratings.forEach((r, i) => {
+      const best = r.bestIsOpener ? `opener: ${r.bestWord}` : `best: ${r.bestWord} ${r.bestScore!.toFixed(1)}`
+      console.log(
+        `  ${String(i + 1).padStart(2)}. ${r.word}  ${r.score.toFixed(1)}  (${best})` +
+        `  candidates ${r.candidatesBefore} → ${r.candidatesAfter}`,
+      )
+    })
+  }
 
   const unsolved = result.boards.filter((b) => b.solvedWord === null).length
   if (unsolved === 0) {
@@ -163,7 +183,8 @@ function run(): void {
     const badge = s.isCandidateFor.length
       ? `  answer? ${s.isCandidateFor.length > 1 ? 'boards' : 'board'} ${s.isCandidateFor.map((x) => x + 1).join(',')}`
       : ''
-    console.log(`  ${String(i + 1).padStart(2)}. ${s.word}  ${s.score.toFixed(2)} (${s.source})${badge}`)
+    const scoreTxt = s.source === 'opener' ? s.source : `${s.score.toFixed(2)} (${s.source})`
+    console.log(`  ${String(i + 1).padStart(2)}. ${s.word}  ${scoreTxt}${badge}`)
   })
 }
 

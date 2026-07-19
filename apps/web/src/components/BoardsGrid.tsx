@@ -27,6 +27,7 @@ export function BoardsGrid({ state, dispatch, recheck, reply }: Props): JSX.Elem
           contradiction={reply?.contradictions.find((c) => c.board === b)?.guessIndex ?? null}
           expanded={!compact || expandedBoard === b}
           onToggle={() => setExpandedBoard(b)}
+          repairs={reply?.repairs.filter((r) => r.board === b) ?? []}
         />
       ))}
     </div>

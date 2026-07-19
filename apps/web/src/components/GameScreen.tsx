@@ -9,6 +9,7 @@ import { useSolver } from '../worker/useSolver'
 import { AboutDialog } from './AboutDialog'
 import { BoardsGrid } from './BoardsGrid'
 import { GuessInput } from './GuessInput'
+import { GuessQualityPanel } from './GuessQualityPanel'
 import { ImportExportDialog } from './ImportExportDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { SuggestionsPanel } from './SuggestionsPanel'
@@ -53,7 +54,13 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
   const progressText =
     progress === 'loading-dictionary' ? t('game.loadingDict')
     : progress === 'building-table' ? t('game.buildingTable')
+    : progress === 'rating-guesses' ? t('game.ratingGuesses')
     : null
+
+  const contradictedBoards =
+    reply?.result.boards.flatMap((b, i) => (b.candidatesLeft === 0 && b.solvedWord === null ? [i] : [])) ?? []
+  const unsolvedLeft = reply?.result.boards.filter((b) => b.solvedWord === null).length ?? 0
+  const allContradicted = contradictedBoards.length > 0 && contradictedBoards.length === unsolvedLeft
 
   return (
     <div className="screen">
@@ -92,7 +99,14 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
 
       {!won && !over && (
         <>
-          <SuggestionsPanel reply={reply} busy={busy} progressText={progressText} onPick={setPrefill} />
+          <SuggestionsPanel
+            reply={reply}
+            busy={busy}
+            progressText={progressText}
+            onPick={setPrefill}
+            contradictedBoards={contradictedBoards}
+            allContradicted={allContradicted}
+          />
           <GuessInput
             language={state.language}
             wordLength={state.wordLength}
@@ -106,6 +120,7 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
       )}
 
       <BoardsGrid state={state} dispatch={dispatch} recheck={ui.recheck} reply={reply} />
+      <GuessQualityPanel ratings={reply?.ratings ?? []} />
 
       {dialog === 'io' && <ImportExportDialog session={ui.session} onClose={() => setDialog('none')} onImported={onImported} />}
       {dialog === 'settings' && <SettingsDialog onClose={() => setDialog('none')} />}

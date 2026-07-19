@@ -37,3 +37,15 @@ it('on-screen keyboard types letters', () => {
   fireEvent.click(screen.getByTestId('kb-е'))
   expect((screen.getByTestId('guess-input') as HTMLInputElement).value).toBe('се')
 })
+
+it('keyboard renders kb-rows with the language column count', () => {
+  const { container } = render(
+    <I18nProvider lang="en">
+      <GuessInput language="ru" wordLength={5} onCommit={() => {}} prefill="" />
+    </I18nProvider>,
+  )
+  const kb = container.querySelector('.keyboard') as HTMLElement
+  expect(kb.getAttribute('style')).toContain('--kb-cols: 12')
+  expect(container.querySelectorAll('.kb-row')).toHaveLength(3)
+  expect(container.querySelector('.kb-wide')).toBeTruthy()
+})

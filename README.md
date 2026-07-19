@@ -2,7 +2,7 @@
 
 A solver assistant for Wordle-family games. You play the real game elsewhere, enter your guesses and color feedback into the app, and it suggests the best next guesses. Supports English and Russian, 1–16 boards, word lengths 4–8.
 
-**Primary target:** Russian Quordle (5-letter words, 4 boards). Measured **100.00% win rate over 1000 seeded games** with an average of **6.589 guesses per game** in deep mode — comfortably above the ≥99% spec target. See [BENCHMARKS.md](packages/solver-core/BENCHMARKS.md) for details.
+**Primary target:** Russian Quordle (5-letter words, 4 boards). Measured **100.00% win rate over 1000 seeded games** with an average of **7.228 guesses per game** in deep mode — comfortably above the ≥99% spec target, on the full-corpus answer pool (2,744 words, up from 999 before the 2026-07-19 dictionary rebuild). See [BENCHMARKS.md](packages/solver-core/BENCHMARKS.md) for details.
 
 ## Features
 

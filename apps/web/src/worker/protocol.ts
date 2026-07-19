@@ -1,4 +1,4 @@
-import type { GameState, SolveResult } from '@wordlesolv/solver-core'
+import type { GameState, GuessRating, SolveResult, TileRepair } from '@wordlesolv/solver-core'
 
 export type SolveMode = 'auto' | 'deep' | 'lite'
 
@@ -13,7 +13,7 @@ export interface SuggestRequest {
 export interface ProgressReply {
   id: number
   type: 'progress'
-  message: 'loading-dictionary' | 'building-table'
+  message: 'loading-dictionary' | 'building-table' | 'rating-guesses'
 }
 
 export interface ResultReply {
@@ -23,6 +23,8 @@ export interface ResultReply {
   effectiveMode: 'deep' | 'lite'
   contradictions: { board: number; guessIndex: number }[]
   unknownGuesses: string[]
+  ratings: GuessRating[]
+  repairs: TileRepair[]
 }
 
 export interface ErrorReply {
