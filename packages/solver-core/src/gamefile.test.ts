@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeDictionary } from './dictionary'
-import { findContradictions, gameFileTemplate, parseGameFile, unknownWords } from './gamefile'
+import { findContradictions, gameFileTemplate, parseGameFile, serializeGameFile, unknownWords } from './gamefile'
 import { scoreGuess, stringToPattern } from './pattern'
 
 const HEADER = 'lang en\nlen 5\nboards 2\n'
@@ -155,6 +155,34 @@ describe('findContradictions', () => {
     const r = parseGameFile(text)
     const cs = findContradictions(r.state, d5)
     expect(cs).toEqual([{ board: 0, guessIndex: 1 }])
+  })
+})
+
+describe('serializeGameFile', () => {
+  it('round-trips a game with a solved board and derived rows', () => {
+    const text =
+      'lang en\nlen 5\nboards 2\n' +
+      `crane +++++ ${symbolsFor('crane', 'slate')}\n` +
+      `slate . ${symbolsFor('slate', 'slate')}\n`
+    const orig = parseGameFile(text)
+    const out = serializeGameFile(orig.state)
+    const rt = parseGameFile(out)
+    expect(rt.state).toEqual(orig.state)
+    expect(rt.mode).toBe('deep')
+    expect(out).toContain('crane +++++')
+    // derived row for solved board 1 must serialize as '.'
+    expect(out.split('\n').find((l) => l.startsWith('slate'))).toContain(' . ')
+  })
+  it('emits mode line only for lite, max only when non-default', () => {
+    const r = parseGameFile('lang ru\nlen 5\nboards 4\nmode lite\nmax 10\n')
+    const out = serializeGameFile(r.state, 'lite')
+    expect(out).toContain('mode lite')
+    expect(out).toContain('max 10')
+    const d = parseGameFile('lang ru\nlen 5\nboards 4\n')
+    const out2 = serializeGameFile(d.state)
+    expect(out2).not.toContain('mode')
+    expect(out2).not.toContain('max')
+    expect(parseGameFile(out2).state.maxGuesses).toBe(9)
   })
 })
 

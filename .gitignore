@@ -3,3 +3,6 @@ node_modules/
 dist/
 coverage/
 *.log
+apps/web/public/dict/
+apps/web/test-results/
+apps/web/playwright-report/

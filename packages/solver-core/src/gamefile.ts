@@ -1,6 +1,6 @@
 import { boardView, normalizeWord, type Dictionary } from './dictionary'
 import { allGreen, scoreGuess } from './pattern'
-import { newGame, solvedWordOf, type GameState, type Language } from './types'
+import { defaultMaxGuesses, newGame, solvedWordOf, type GameState, type Language } from './types'
 
 export interface ParsedGameFile {
   state: GameState
@@ -221,4 +221,40 @@ export function findContradictions(
     }
   }
   return out
+}
+
+const SYM_OUT = ['-', '*', '+'] // gray, yellow, green
+
+/**
+ * Inverse of parseGameFile. Rows after a board's solving row serialize as '.'
+ * (parseGameFile backfills them identically, so round-trip is exact for any
+ * state whose post-solve rows are true scores against the solution — which
+ * is every state this codebase produces).
+ */
+export function serializeGameFile(state: GameState, mode?: 'deep' | 'lite'): string {
+  const lines: string[] = [
+    '# wordlesolv game file',
+    `lang ${state.language}`,
+    `len ${state.wordLength}`,
+    `boards ${state.boardCount}`,
+  ]
+  if (mode === 'lite') lines.push('mode lite')
+  if (state.maxGuesses !== defaultMaxGuesses(state.boardCount)) lines.push(`max ${state.maxGuesses}`)
+  lines.push('')
+  const done = allGreen(state.wordLength)
+  const solveRow = state.boards.map((b) => b.feedback.indexOf(done))
+  for (let g = 0; g < state.guesses.length; g++) {
+    const groups = state.boards.map((b, bi) => {
+      if (solveRow[bi] !== -1 && g > solveRow[bi]) return '.'
+      let p = b.feedback[g]
+      let out = ''
+      for (let i = 0; i < state.wordLength; i++) {
+        out += SYM_OUT[p % 3]
+        p = Math.floor(p / 3)
+      }
+      return out
+    })
+    lines.push(`${state.guesses[g]} ${groups.join(' ')}`)
+  }
+  return lines.join('\n') + '\n'
 }
