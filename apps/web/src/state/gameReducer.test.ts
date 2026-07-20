@@ -1,4 +1,4 @@
-import { scoreGuess, stringToPattern } from '@wordlesolv/solver-core'
+import { scoreGuess, stringToPattern } from '@wordsolv/solver-core'
 import { expect, it } from 'vitest'
 import { gameReducer, isRowDerived, solveRowOf, type GameUIState } from './gameReducer'
 import { newSession } from './sessionStore'

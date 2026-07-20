@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 ru 8 3709
+#wordsolv-dict v1 ru 8 3709
 проблема
 господин
 внимание

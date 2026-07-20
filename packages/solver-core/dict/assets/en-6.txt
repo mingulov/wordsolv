@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 en 6 3500
+#wordsolv-dict v1 en 6 3500
 really
 people
 little

@@ -1,6 +1,6 @@
-# wordlesolv — Wordle Solver Assistant
+# wordsolv — Word-Grid Solver Assistant
 
-A solver assistant for Wordle-family games. You play the real game elsewhere, enter your guesses and color feedback into the app, and it suggests the best next guesses. Supports English and Russian, 1–16 boards, word lengths 4–8.
+A solver assistant for Wordle, Quordle and other word-grid games. You play the real game elsewhere, enter your guesses and color feedback into the app, and it suggests the best next guesses. Supports English and Russian, 1–16 boards, word lengths 4–8.
 
 **Primary target:** Russian Quordle (5-letter words, 4 boards). Measured **100.00% win rate over 1000 seeded games** with an average of **7.228 guesses per game** in deep mode — comfortably above the ≥99% spec target, on the full-corpus answer pool (2,744 words, up from 999 before the 2026-07-19 dictionary rebuild). See [BENCHMARKS.md](packages/solver-core/BENCHMARKS.md) for details.
 
@@ -17,7 +17,7 @@ A solver assistant for Wordle-family games. You play the real game elsewhere, en
 This is an npm workspace monorepo:
 
 ```
-wordlesolv/
+wordsolv/
 ├── packages/solver-core/    # Pure TypeScript library: state model, word filtering,
 │   ├── src/                 # solver algorithms, simulation harness. No DOM/React.
 │   ├── bin/                 # CLI tools: solve.ts (solver), simulate.ts (benchmark)
@@ -77,8 +77,8 @@ slate +-+-+
 npm test                              # Run all workspace tests (includes 10-min benchmark gates)
 npm run typecheck --workspaces        # TypeScript check
 cd packages/solver-core && npx vitest run  # Solver-core tests (fast suite)
-npm test -w @wordlesolv/web           # Web app tests
-npm run build -w @wordlesolv/web      # Build web app (for production)
+npm test -w @wordsolv/web           # Web app tests
+npm run build -w @wordsolv/web      # Build web app (for production)
 ```
 
 ## Deploying to GitHub Pages
@@ -108,7 +108,7 @@ That's it — the workflow will deploy automatically on every push to `main`.
 
 The app automatically derives the base path from your repository name:
 - **User/org site** (`*.github.io`): serves at `/` (e.g., `https://yourname.github.io/`)
-- **Project site**: serves at `/<repo-name>/` (e.g., `https://github.com/yourname/wordlesolv` → `https://yourname.github.io/wordlesolv/`)
+- **Project site**: serves at `/<repo-name>/` (e.g., `https://github.com/yourname/wordsolv` → `https://yourname.github.io/wordsolv/`)
 
 No configuration needed — the build system handles this from the `GITHUB_REPOSITORY` environment variable.
 

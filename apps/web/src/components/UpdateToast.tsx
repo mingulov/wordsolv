@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useI18n } from '../i18n'
 

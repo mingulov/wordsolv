@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { I18nProvider } from './i18n'
 import { GameScreen } from './components/GameScreen'

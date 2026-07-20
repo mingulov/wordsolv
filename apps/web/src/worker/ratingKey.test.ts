@@ -1,4 +1,4 @@
-import { newGame, scoreGuess } from '@wordlesolv/solver-core'
+import { newGame, scoreGuess } from '@wordsolv/solver-core'
 import { expect, it } from 'vitest'
 import { ratingRowKey } from './ratingKey'
 

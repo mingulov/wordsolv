@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useSettings } from '../App'
 import { useI18n } from '../i18n'
 import type { Settings } from '../state/types'

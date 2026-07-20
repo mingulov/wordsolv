@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import { useState, type Dispatch } from 'react'
-import type { GameState } from '@wordlesolv/solver-core'
+import type { GameState } from '@wordsolv/solver-core'
 import type { GameAction } from '../state/gameReducer'
 import type { ResultReply } from '../worker/protocol'
 import { BoardCard } from './BoardCard'

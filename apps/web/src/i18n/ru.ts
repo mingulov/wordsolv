@@ -1,7 +1,7 @@
 import type { MsgKey } from './en'
 
 export const ru: Record<MsgKey, string> = {
-  'app.title': 'wordlesolv',
+  'app.title': 'wordsolv',
   'setup.newGame': 'Новая игра',
   'setup.language': 'Язык слов',
   'setup.length': 'Длина слова',
@@ -58,7 +58,7 @@ export const ru: Record<MsgKey, string> = {
   'game.wrongLength': 'нужно ровно {n} букв',
   'dialog.importExport': 'Импорт / Экспорт',
   'dialog.import': 'Импорт',
-  'dialog.importHint': 'Вставьте файл игры wordlesolv',
+  'dialog.importHint': 'Вставьте файл игры wordsolv',
   'dialog.export': 'Экспорт',
   'dialog.copy': 'Копировать',
   'dialog.download': 'Скачать',

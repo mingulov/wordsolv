@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import { useState } from 'react'
-import { defaultMaxGuesses, type Language } from '@wordlesolv/solver-core'
+import { defaultMaxGuesses, type Language } from '@wordsolv/solver-core'
 import { useSettings } from '../App'
 import { useI18n } from '../i18n'
 import { deleteSession, loadSessions, newSession } from '../state/sessionStore'

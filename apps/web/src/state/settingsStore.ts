@@ -1,6 +1,6 @@
 import type { Settings } from './types'
 
-const KEY = 'wordlesolv:settings'
+const KEY = 'wordsolv:settings'
 
 export function defaultSettings(): Settings {
   const ru = typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('ru')

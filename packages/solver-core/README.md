@@ -1,4 +1,4 @@
-# @wordlesolv/solver-core
+# @wordsolv/solver-core
 
 Language- and board-count-agnostic solving engine for Wordle-family games
 (classic single-board Wordle, and Quordle-style N-board simultaneous play).
@@ -25,7 +25,7 @@ All exports are re-exported from `src/index.ts`.
   validates schema version and internal consistency (feedback arrays must
   match `guesses` length, etc.) and throws on malformed input.
 - **`parseDictAsset(text) → Dictionary`** — parses the compiled dictionary
-  asset format (`#wordlesolv-dict v1 <lang> <len> <t1Count>` header + one
+  asset format (`#wordsolv-dict v1 <lang> <len> <t1Count>` header + one
   word per line, T1 first then T2) into a `Dictionary` (word list + a
   `word → index` map used everywhere else for fast lookups).
 - **`buildPatternTable(dict, maxBytes?) → PatternTable | null`** — builds an

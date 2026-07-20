@@ -1,14 +1,14 @@
 {
-  "name": "wordlesolv",
+  "name": "wordsolv",
   "private": true,
   "type": "module",
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "bench": "npm exec -w @wordlesolv/solver-core tsx bin/simulate.ts --",
-    "solve": "npm exec -w @wordlesolv/solver-core tsx bin/solve.ts --",
-    "dev": "npm run dev -w @wordlesolv/web",
-    "build": "npm run build -w @wordlesolv/web"
+    "bench": "npm exec -w @wordsolv/solver-core tsx bin/simulate.ts --",
+    "solve": "npm exec -w @wordsolv/solver-core tsx bin/solve.ts --",
+    "dev": "npm run dev -w @wordsolv/web",
+    "build": "npm run build -w @wordsolv/web"
   }
 }

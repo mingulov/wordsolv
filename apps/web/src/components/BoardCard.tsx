@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import type { Dispatch } from 'react'
-import type { BoardSummary, GameState, TileRepair } from '@wordlesolv/solver-core'
+import type { BoardSummary, GameState, TileRepair } from '@wordsolv/solver-core'
 import { useI18n } from '../i18n'
 import { isRowDerived, solveRowOf, type GameAction } from '../state/gameReducer'
 

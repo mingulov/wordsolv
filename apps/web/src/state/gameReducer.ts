@@ -1,4 +1,4 @@
-import { allGreen, scoreGuess, solvedWordOf, type GameState } from '@wordlesolv/solver-core'
+import { allGreen, scoreGuess, solvedWordOf, type GameState } from '@wordsolv/solver-core'
 import type { Session } from './types'
 
 export interface GameUIState {

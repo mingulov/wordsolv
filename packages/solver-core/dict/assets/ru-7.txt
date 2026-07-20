@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 ru 7 3806
+#wordsolv-dict v1 ru 7 3806
 спасибо
 сегодня
 человек

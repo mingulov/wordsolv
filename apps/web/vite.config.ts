@@ -17,8 +17,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'wordlesolv',
-        short_name: 'wordlesolv',
+        name: 'wordsolv',
+        short_name: 'wordsolv',
         description: 'Wordle / Quordle solver assistant (EN + RU)',
         theme_color: '#6aaa64',
         background_color: '#121213',

@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 en 8 3500
+#wordsolv-dict v1 en 8 3500
 anything
 happened
 remember

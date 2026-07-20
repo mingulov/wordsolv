@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { newGame } from '@wordlesolv/solver-core'
+import { newGame } from '@wordsolv/solver-core'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { WorkerReply } from './protocol'
 import { useSolver } from './useSolver'

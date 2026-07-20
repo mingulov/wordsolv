@@ -1,5 +1,5 @@
 export const en = {
-  'app.title': 'wordlesolv',
+  'app.title': 'wordsolv',
   'setup.newGame': 'New game',
   'setup.language': 'Word language',
   'setup.length': 'Word length',
@@ -56,7 +56,7 @@ export const en = {
   'game.wrongLength': 'need exactly {n} letters',
   'dialog.importExport': 'Import / Export',
   'dialog.import': 'Import',
-  'dialog.importHint': 'Paste a wordlesolv game file',
+  'dialog.importHint': 'Paste a wordsolv game file',
   'dialog.export': 'Export',
   'dialog.copy': 'Copy',
   'dialog.download': 'Download',

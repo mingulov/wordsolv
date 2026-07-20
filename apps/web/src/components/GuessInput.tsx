@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import { useEffect, useState, type CSSProperties } from 'react'
-import { normalizeWord, type Language } from '@wordlesolv/solver-core'
+import { normalizeWord, type Language } from '@wordsolv/solver-core'
 import { useI18n } from '../i18n'
 
 const KEYS: Record<Language, string[]> = {

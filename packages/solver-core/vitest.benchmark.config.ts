@@ -11,10 +11,16 @@ export default defineConfig({
     // no test actually fails. This suite has no real async code (solver-core is 100% sync),
     // so there is no genuine unhandled rejection this could mask — safe to ignore.
     //
-    // This flag is root/run-level only in Vitest 3.2.7 (it's listed in the `NonProjectOptions`
-    // type and stripped from `ProjectConfig`), so it cannot be scoped inside a single `projects`
-    // array entry — hence this fully separate config file, run as its own `vitest run` invocation,
-    // instead of a project within vitest.config.ts.
+    // This flag was root/run-level only in Vitest 3.2.7 (listed in `NonProjectOptions` and
+    // stripped from `ProjectConfig`), so it could not be scoped inside a single `projects`
+    // array entry — hence this fully separate config file, run as its own `vitest run`
+    // invocation, instead of a project within vitest.config.ts.
+    //
+    // Carried forward unchanged through the Vitest 4.1.10 upgrade (2026-07-20): both gates
+    // pass under v4 with this config as-is. Not re-tested is whether v4 still *needs* it —
+    // `NonProjectOptions` no longer exists by that name in v4's types, so the split may now
+    // be collapsible into vitest.config.ts. Verifying that costs a ~9-minute run; do it
+    // before assuming this file is still load-bearing.
     dangerouslyIgnoreUnhandledErrors: true,
   },
 })

@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 ru 5 2744
+#wordsolv-dict v1 ru 5 2744
 время
 жизнь
 через

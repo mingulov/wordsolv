@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GameState } from '@wordlesolv/solver-core'
+import type { GameState } from '@wordsolv/solver-core'
 import type { ResultReply, SolveMode, SuggestRequest, WorkerReply } from './protocol'
 
 const BUSY_DELAY_MS = 150

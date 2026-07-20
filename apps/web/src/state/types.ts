@@ -1,4 +1,4 @@
-import type { GameState, Language } from '@wordlesolv/solver-core'
+import type { GameState, Language } from '@wordsolv/solver-core'
 import type { SolveMode } from '../worker/protocol'
 
 export interface Session {

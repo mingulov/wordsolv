@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 en 5 3500
+#wordsolv-dict v1 en 5 3500
 there
 right
 about

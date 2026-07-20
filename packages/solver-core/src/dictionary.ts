@@ -30,12 +30,12 @@ export function makeDictionary(language: Language, wordLength: number, t1: strin
 }
 
 export function serializeDict(d: Dictionary): string {
-  return `#wordlesolv-dict v1 ${d.language} ${d.wordLength} ${d.t1Count}\n${d.words.join('\n')}\n`
+  return `#wordsolv-dict v1 ${d.language} ${d.wordLength} ${d.t1Count}\n${d.words.join('\n')}\n`
 }
 
 export function parseDictAsset(text: string): Dictionary {
   const lines = text.split('\n').filter((l) => l.length > 0)
-  const m = /^#wordlesolv-dict v1 (en|ru) (\d+) (\d+)$/.exec(lines[0] ?? '')
+  const m = /^#wordsolv-dict v1 (en|ru) (\d+) (\d+)$/.exec(lines[0] ?? '')
   if (!m) throw new Error('dictionary asset: bad header')
   const [, lang, len, t1] = m
   const words = lines.slice(1)

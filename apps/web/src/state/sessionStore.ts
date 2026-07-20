@@ -1,9 +1,9 @@
-import { newGame, parseGameState, serializeGameState, type Language } from '@wordlesolv/solver-core'
+import { newGame, parseGameState, serializeGameState, type Language } from '@wordsolv/solver-core'
 import type { SolveMode } from '../worker/protocol'
 import type { Session } from './types'
 
-const KEY = 'wordlesolv:sessions'
-const QUARANTINE = 'wordlesolv:quarantine'
+const KEY = 'wordsolv:sessions'
+const QUARANTINE = 'wordsolv:quarantine'
 
 interface StoredSession {
   id: string

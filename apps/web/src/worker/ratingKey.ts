@@ -1,4 +1,4 @@
-import type { GameState } from '@wordlesolv/solver-core'
+import type { GameState } from '@wordsolv/solver-core'
 
 /** Cache key for the rating of `row`: config + every row's word/feedback up to and including it. */
 export function ratingRowKey(state: GameState, row: number): string {

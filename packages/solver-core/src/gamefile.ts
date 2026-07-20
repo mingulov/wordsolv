@@ -178,7 +178,7 @@ export function gameFileTemplate(lang: Language, len: number, boards: number): s
   const gray = '-'.repeat(len)
   const example = Array.from({ length: boards }, () => gray).join(' ')
   return [
-    '# wordlesolv game file — edit, save, then run: npm run solve -- <this file>',
+    '# wordsolv game file — edit, save, then run: npm run solve -- <this file>',
     '# One line per guess: the word, then one color group per board, e.g.:',
     `#   <word> ${example}`,
     '# Symbols: + correct place | * in word, wrong place | - not in word',
@@ -233,7 +233,7 @@ const SYM_OUT = ['-', '*', '+'] // gray, yellow, green
  */
 export function serializeGameFile(state: GameState, mode?: 'deep' | 'lite'): string {
   const lines: string[] = [
-    '# wordlesolv game file',
+    '# wordsolv game file',
     `lang ${state.language}`,
     `len ${state.wordLength}`,
     `boards ${state.boardCount}`,

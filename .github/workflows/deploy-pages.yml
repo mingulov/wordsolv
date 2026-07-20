@@ -23,8 +23,8 @@ jobs:
       - run: npm run typecheck --workspaces --if-present
       - run: npx vitest run
         working-directory: packages/solver-core
-      - run: npm test -w @wordlesolv/web
-      - run: npm run build -w @wordlesolv/web
+      - run: npm test -w @wordsolv/web
+      - run: npm run build -w @wordsolv/web
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist

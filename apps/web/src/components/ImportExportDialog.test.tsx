@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { serializeGameFile } from '@wordlesolv/solver-core'
+import { serializeGameFile } from '@wordsolv/solver-core'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { newSession } from '../state/sessionStore'

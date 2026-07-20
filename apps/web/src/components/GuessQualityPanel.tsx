@@ -1,4 +1,5 @@
-import type { GuessRating } from '@wordlesolv/solver-core'
+import type { JSX } from 'react'
+import type { GuessRating } from '@wordsolv/solver-core'
 import { useI18n } from '../i18n'
 
 export function GuessQualityPanel({ ratings }: { ratings: GuessRating[] }): JSX.Element | null {

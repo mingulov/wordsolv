@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 ru 4 1444
+#wordsolv-dict v1 ru 4 1444
 есть
 этот
 один

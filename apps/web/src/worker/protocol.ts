@@ -1,4 +1,4 @@
-import type { GameState, GuessRating, SolveResult, TileRepair } from '@wordlesolv/solver-core'
+import type { GameState, GuessRating, SolveResult, TileRepair } from '@wordsolv/solver-core'
 
 export type SolveMode = 'auto' | 'deep' | 'lite'
 

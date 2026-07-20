@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import { useState } from 'react'
-import { parseGameFile, serializeGameFile, serializeGameState } from '@wordlesolv/solver-core'
+import { parseGameFile, serializeGameFile, serializeGameState } from '@wordsolv/solver-core'
 import { useI18n } from '../i18n'
 import { saveSession } from '../state/sessionStore'
 import type { Session } from '../state/types'
@@ -42,7 +43,7 @@ export function ImportExportDialog({ session, onClose, onImported }: Props): JSX
     const blob = new Blob([exported], { type: 'text/plain' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = asJson ? 'wordlesolv-game.json' : 'wordlesolv-game.txt'
+    a.download = asJson ? 'wordsolv-game.json' : 'wordsolv-game.txt'
     a.click()
     URL.revokeObjectURL(a.href)
   }

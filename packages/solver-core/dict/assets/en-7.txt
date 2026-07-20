@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 en 7 3500
+#wordsolv-dict v1 en 7 3500
 because
 nothing
 thought

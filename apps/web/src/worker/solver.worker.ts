@@ -3,7 +3,7 @@ import {
   buildPatternTable, defaultOptions, findContradictions, parseDictAsset, rateGuessRow, suggest,
   suggestRepairs, unknownWords,
   type Dictionary, type GuessRating, type PatternTable,
-} from '@wordlesolv/solver-core'
+} from '@wordsolv/solver-core'
 import type { SuggestRequest, WorkerReply } from './protocol'
 import { ratingRowKey } from './ratingKey'
 

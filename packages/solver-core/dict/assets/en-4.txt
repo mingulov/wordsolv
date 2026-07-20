@@ -1,4 +1,4 @@
-#wordlesolv-dict v1 en 4 2385
+#wordsolv-dict v1 en 4 2385
 that
 what
 this

@@ -19,16 +19,16 @@ it('save/load/delete round-trip, newest first', () => {
 it('quarantines corrupt entries instead of crashing', () => {
   const good = newSession('en', 5, 1, undefined, 'auto')
   saveSession(good)
-  const raw = JSON.parse(localStorage.getItem('wordlesolv:sessions')!)
+  const raw = JSON.parse(localStorage.getItem('wordsolv:sessions')!)
   raw.sessions.push({ id: 'bad', name: 'x', state: '{"schemaVersion":99}', mode: 'auto', updatedAt: 1 })
-  localStorage.setItem('wordlesolv:sessions', JSON.stringify(raw))
+  localStorage.setItem('wordsolv:sessions', JSON.stringify(raw))
   const loaded = loadSessions()
   expect(loaded.map((s) => s.id)).toEqual([good.id])
-  expect(localStorage.getItem('wordlesolv:quarantine')).toContain('bad')
+  expect(localStorage.getItem('wordsolv:quarantine')).toContain('bad')
 })
 
 it('unparsable store is quarantined wholesale', () => {
-  localStorage.setItem('wordlesolv:sessions', 'not json')
+  localStorage.setItem('wordsolv:sessions', 'not json')
   expect(loadSessions()).toEqual([])
-  expect(localStorage.getItem('wordlesolv:quarantine')).toBe('not json')
+  expect(localStorage.getItem('wordsolv:quarantine')).toBe('not json')
 })

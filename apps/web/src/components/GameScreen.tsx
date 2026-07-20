@@ -1,5 +1,6 @@
+import type { JSX } from 'react'
 import { useEffect, useReducer, useRef, useState } from 'react'
-import { solvedWordOf } from '@wordlesolv/solver-core'
+import { solvedWordOf } from '@wordsolv/solver-core'
 import { useSettings } from '../App'
 import { useI18n } from '../i18n'
 import { gameReducer, type GameUIState } from '../state/gameReducer'
