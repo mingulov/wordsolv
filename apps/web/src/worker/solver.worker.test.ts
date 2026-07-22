@@ -290,6 +290,125 @@ it('decompresses and parses a real gzipped move-1 book on a successful fetch', a
   expect(Array.from(rateBook.move1.values as Float32Array)).toEqual(Array.from(valuesM1Ok))
 })
 
+// Same shape as the gzipped test above, but served *without* gzip —
+// simulating a host/CDN that sets `Content-Encoding: gzip` on
+// `*.m1.bin.gz`, so the browser transparently decompresses the body before
+// our code ever sees it. `loadBook` must sniff the bytes (no 0x1f 0x8b gzip
+// magic) and hand the buffer straight to `parseMove1` instead of assuming
+// gzip and choking on already-plain bytes. Own cache key (ru-6, distinct
+// word length) so this doesn't collide with the gzipped ru-5 test's
+// module-scoped dict/table/book caches.
+
+const DICT_TEXT_M1_PLAIN = '#wordsolv-dict v1 ru 6 3\nаааааб\nаааааг\nааааад\nяяяяяя\n'
+const dictM1Plain = parseDictAsset(DICT_TEXT_M1_PLAIN)
+const openerM1Plain = dictM1Plain.words[0] // 'аааааб'
+const openerIdxM1Plain = dictM1Plain.index.get(openerM1Plain)!
+const m0BufferM1Plain = serializeMove0(dictM1Plain, new Float64Array([0.1, 0.2, 0.3, 0.4]))
+
+const patternsM1Plain = Array.from(
+  new Set(dictM1Plain.words.slice(0, dictM1Plain.t1Count).map((w) => scoreGuess(openerM1Plain, w))),
+)
+const nM1Plain = dictM1Plain.words.length
+const valuesM1Plain = Float32Array.from({ length: patternsM1Plain.length * nM1Plain }, (_, i) => i + 0.5)
+const m1BufferPlain = serializeMove1(dictM1Plain, openerIdxM1Plain, patternsM1Plain, valuesM1Plain)
+
+const stateM1Plain: GameState = {
+  ...newGame('ru', 6, 1),
+  guesses: [openerM1Plain],
+  boards: [{ feedback: [scoreGuess(openerM1Plain, dictM1Plain.words[1])] }],
+}
+
+it('parses an already-decompressed move-1 book (host pre-decompressed via Content-Encoding)', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/m1-plain.txt') return { ok: true, text: async () => DICT_TEXT_M1_PLAIN } as unknown as Response
+      if (url === '/dict/m1-plain.m0.bin') return { ok: true, arrayBuffer: async () => m0BufferM1Plain } as unknown as Response
+      // Note: NOT gzipped — this is the raw WSM1 buffer served as-is, as if
+      // the browser had already stripped `Content-Encoding: gzip` for us.
+      if (url === '/dict/m1-plain.m1.bin.gz') return { ok: true, arrayBuffer: async () => m1BufferPlain } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 261,
+    type: 'suggest',
+    state: stateM1Plain,
+    mode: 'lite',
+    dictUrl: '/dict/m1-plain.txt',
+    m0Url: '/dict/m1-plain.m0.bin',
+    m1Url: '/dict/m1-plain.m1.bin.gz',
+  }
+  const reply = await send(req)
+
+  expect(reply.type).toBe('result')
+
+  expect(suggestSpy).toHaveBeenCalledTimes(1)
+  const suggestBook = suggestSpy.mock.calls[0][4] // suggest(state, dict, opts, table, book)
+  expect(suggestBook.move0).toEqual(expect.any(Float64Array))
+  expect(suggestBook.move1).not.toBeNull()
+  expect(suggestBook.move1.openerIdx).toBe(openerIdxM1Plain)
+  expect(suggestBook.move1.n).toBe(nM1Plain)
+  expect(new Set(suggestBook.move1.rowOf.keys())).toEqual(new Set(patternsM1Plain))
+  patternsM1Plain.forEach((p, row) => expect(suggestBook.move1.rowOf.get(p)).toBe(row))
+  expect(Array.from(suggestBook.move1.values as Float32Array)).toEqual(Array.from(valuesM1Plain))
+
+  expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
+  const rateBook = rateGuessRowSpy.mock.calls[0][5] // rateGuessRow(state, row, dict, opts, table, book)
+  expect(rateBook.move1).not.toBeNull()
+  expect(rateBook.move1.openerIdx).toBe(openerIdxM1Plain)
+  expect(Array.from(rateBook.move1.values as Float32Array)).toEqual(Array.from(valuesM1Plain))
+})
+
+// Neither gzip (no 0x1f 0x8b magic) nor a valid WSM1 buffer — e.g. a host
+// serving an HTML error page or truncated file at the m1 URL. Must degrade
+// to move1 = null while move0 stays intact and the worker still posts a
+// normal 'result' reply (no error).
+
+const DICT_TEXT_M1_GARBAGE = '#wordsolv-dict v1 ru 7 3\nааааааб\nааааааг\nаааааад\nяяяяяяя\n'
+const dictM1Garbage = parseDictAsset(DICT_TEXT_M1_GARBAGE)
+const m0BufferM1Garbage = serializeMove0(dictM1Garbage, new Float64Array([0.1, 0.2, 0.3, 0.4]))
+const stateM1Garbage: GameState = {
+  ...newGame('ru', 7, 1),
+  guesses: [dictM1Garbage.words[0]],
+  boards: [{ feedback: [scoreGuess(dictM1Garbage.words[0], dictM1Garbage.words[1])] }],
+}
+
+it('degrades to move1 = null (keeping move0) when the move-1 body is neither gzip nor a valid WSM1 buffer', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/m1-garbage.txt') return { ok: true, text: async () => DICT_TEXT_M1_GARBAGE } as unknown as Response
+      if (url === '/dict/m1-garbage.m0.bin') return { ok: true, arrayBuffer: async () => m0BufferM1Garbage } as unknown as Response
+      if (url === '/dict/m1-garbage.m1.bin.gz')
+        return { ok: true, arrayBuffer: async () => new TextEncoder().encode('not a book').buffer } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 262,
+    type: 'suggest',
+    state: stateM1Garbage,
+    mode: 'lite',
+    dictUrl: '/dict/m1-garbage.txt',
+    m0Url: '/dict/m1-garbage.m0.bin',
+    m1Url: '/dict/m1-garbage.m1.bin.gz',
+  }
+  const reply = await send(req)
+
+  expect(reply.type).toBe('result') // silent degradation: no error reply for a garbage move-1 body
+
+  expect(suggestSpy).toHaveBeenCalledTimes(1)
+  const suggestBook = suggestSpy.mock.calls[0][4] // suggest(state, dict, opts, table, book)
+  expect(suggestBook).toEqual(expect.objectContaining({ move0: expect.any(Float64Array), move1: null }))
+
+  expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
+  const rateBook = rateGuessRowSpy.mock.calls[0][5] // rateGuessRow(state, row, dict, opts, table, book)
+  expect(rateBook).toEqual(expect.objectContaining({ move0: expect.any(Float64Array), move1: null }))
+})
+
 // --- mode resolution: 'auto' must NOT pay the pattern-table cost ---------
 //
 // These three pin `wantDeep` in solver.worker.ts in all three directions.

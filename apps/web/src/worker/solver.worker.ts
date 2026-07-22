@@ -97,8 +97,9 @@ async function handle(req: SuggestRequest): Promise<void> {
 }
 
 /**
- * Fetches the move-0 book and, when this config has one, the gzipped move-1 book.
- * Any failure — 404, stale dictHash, no DecompressionStream — degrades to the live path.
+ * Fetches the move-0 book and, when this config has one, the move-1 book asset
+ * (served gzipped as `<lang>-<len>.m1.bin.gz`). Any failure — 404, stale
+ * dictHash, no DecompressionStream — degrades to the live path.
  */
 async function loadBook(m0Url: string, m1Url: string | null, dict: Dictionary): Promise<OpeningBook | null> {
   let move0: Float64Array | null = null
@@ -111,12 +112,34 @@ async function loadBook(m0Url: string, m1Url: string | null, dict: Dictionary): 
   if (!move0) return null
 
   let move1: Move1Book | null = null
-  if (m1Url && typeof DecompressionStream !== 'undefined') {
+  if (m1Url) {
     try {
       const res = await fetch(m1Url)
-      if (res.ok && res.body) {
-        const stream = res.body.pipeThrough(new DecompressionStream('gzip'))
-        move1 = parseMove1(await new Response(stream).arrayBuffer(), dict)
+      if (res.ok) {
+        const buf = await res.arrayBuffer()
+        // Whether this buffer is still gzipped depends on the host, not on us:
+        // a CDN/server that serves *.m1.bin.gz with `Content-Encoding: gzip`
+        // makes the browser transparently decompress the body before we ever
+        // see it, in which case `DecompressionStream('gzip')` would throw on
+        // the already-plain bytes (and there's no way to detect that ahead of
+        // time from headers here). So sniff the actual bytes instead of
+        // assuming: a real gzip stream always starts with the magic 0x1f 0x8b.
+        // Only decompress — and only require DecompressionStream — on that
+        // branch; an already-decompressed payload is handed to parseMove1
+        // as-is. parseMove1 validates its own "WSM1" magic/version/dictHash
+        // and returns null (never throws) on any mismatch, so a wrong guess
+        // here just degrades like any other move-1 failure. Do not
+        // "simplify" this back to unconditional decompression.
+        const bytes = new Uint8Array(buf)
+        const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
+        if (isGzip) {
+          if (typeof DecompressionStream !== 'undefined') {
+            const stream = new Response(buf).body!.pipeThrough(new DecompressionStream('gzip'))
+            move1 = parseMove1(await new Response(stream).arrayBuffer(), dict)
+          }
+        } else {
+          move1 = parseMove1(buf, dict)
+        }
       }
     } catch {
       move1 = null
