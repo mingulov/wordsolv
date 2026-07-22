@@ -1,5 +1,5 @@
 /** CLI: npx tsx bin/build-book.ts --config all */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MOVE1_MAX_LEN, serializeMove0 } from '../src/book'
 import { parseDictAsset } from '../src/dictionary'
@@ -18,7 +18,9 @@ const assets = join(import.meta.dirname, '..', 'dict', 'assets')
 const manifestPath = join(assets, 'books.json')
 
 const manifest: Record<string, { m0: boolean; m1: boolean }> =
-  configArg === 'all' ? {} : (JSON.parse(readFileSync(manifestPath, 'utf8')) as typeof manifest)
+  configArg === 'all' || !existsSync(manifestPath)
+    ? {}
+    : (JSON.parse(readFileSync(manifestPath, 'utf8')) as typeof manifest)
 
 for (const cfg of configs) {
   const [lang, lenS] = cfg.split('-')
