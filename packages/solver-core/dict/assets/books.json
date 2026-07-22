@@ -1,0 +1,42 @@
+{
+  "ru-4": {
+    "m0": true,
+    "m1": true
+  },
+  "ru-5": {
+    "m0": true,
+    "m1": true
+  },
+  "ru-6": {
+    "m0": true,
+    "m1": true
+  },
+  "ru-7": {
+    "m0": true,
+    "m1": false
+  },
+  "ru-8": {
+    "m0": true,
+    "m1": false
+  },
+  "en-4": {
+    "m0": true,
+    "m1": true
+  },
+  "en-5": {
+    "m0": true,
+    "m1": true
+  },
+  "en-6": {
+    "m0": true,
+    "m1": true
+  },
+  "en-7": {
+    "m0": true,
+    "m1": false
+  },
+  "en-8": {
+    "m0": true,
+    "m1": false
+  }
+}
