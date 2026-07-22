@@ -10,14 +10,18 @@ browser tab, or a Web Worker. This package is the foundation the web PWA
 
 All exports are re-exported from `src/index.ts`.
 
-- **`suggest(state, dict, opts?, table?) → SolveResult`** — the main entry
-  point. Given a `GameState` (guesses made + per-board feedback so far) and
-  a `Dictionary`, returns ranked `suggestions` (word, score, `source`:
-  `'opener' | 'entropy' | 'endgame'`, and which boards it's still a
-  candidate answer for) plus a `boards` summary (candidates left, tier,
+- **`suggest(state, dict, opts?, table?, book?) → SolveResult`** — the main
+  entry point. Given a `GameState` (guesses made + per-board feedback so
+  far) and a `Dictionary`, returns ranked `suggestions` (word, score,
+  `source`: `'opener' | 'entropy' | 'endgame'`, and which boards it's still
+  a candidate answer for) plus a `boards` summary (candidates left, tier,
   solved word) for each board. `opts` defaults to `defaultOptions('lite')`;
   `table` (a `PatternTable`, optional) enables the fast index-based scoring
-  path used by deep mode.
+  path used by deep mode. `book` (an `OpeningBook`, optional, trailing)
+  lets entropy scoring look up precomputed values instead of computing them
+  live — see "Opening book" below. The same trailing `book` parameter is
+  also accepted by `suggestEntropy`, `scoreAllWords`, `rateGuessRow` and
+  `rateGuesses`.
 - **`newGame(language, wordLength, boardCount, maxGuesses?) → GameState`** —
   constructs a fresh game state (`defaultMaxGuesses`: 6 for a single board,
   `boardCount + 5` for N boards, matching Quordle's convention). Pair with
@@ -45,10 +49,19 @@ All exports are re-exported from `src/index.ts`.
 Other notable exports: `scoreGuess`/`patternToString` (base-3-encoded
 gray/yellow/green pattern scoring), `filterCandidates` (prunes a candidate
 list against a guess/feedback history), `makeDictionary`/`answerWeight`
-(frequency-prior weighting for entropy), `entropyOf`/`suggestEntropy`
-(single- and multi-board entropy ranking), `endgameSearch` (exact joint
-endgame solver), and `djb2`/`mulberry32` (deterministic hashing/RNG used
-throughout for reproducible sampling).
+(frequency-prior weighting for entropy), `entropyOf`/`suggestEntropy`/
+`scoreAllWords` (single- and multi-board entropy ranking), `endgameSearch`
+(exact joint endgame solver), and `djb2`/`mulberry32` (deterministic
+hashing/RNG used throughout for reproducible sampling).
+
+Opening-book exports (see "Opening book" below): `OpeningBook`/`Move1Book`
+(the two in-memory book shapes), `MOVE1_MAX_LEN` (the word-length cutoff
+above which no move-1 book is generated), `dictHashOf` (the hash a book is
+keyed to), `parseMove0`/`parseMove1`/`serializeMove0`/`serializeMove1`
+(binary asset codecs), `bookLookup` (turns a `GameState` + `OpeningBook`
+into an `EntropyLookup` or `null`), and `EntropyLookup` itself (the
+`(wordIdx, slot) => number` function type `scoreWordAgainst` accepts in
+place of a live `entropyOf` call).
 
 ## Phase-based strategy
 
@@ -81,6 +94,59 @@ first:
    candidates are additionally re-ranked by a deterministic 2-ply lookahead
    (`refineTwoPly`): it samples likely answer tuples and estimates the
    expected follow-up entropy each candidate leaves behind.
+
+## Opening book
+
+The entropy phase's `entropyOf` call is the expensive part of the first one
+or two suggestions of every game — scanning the full T1 pool per candidate
+word takes seconds at the larger word lengths (see `BENCHMARKS.md`'s
+"Opening book" section for measured before/after numbers), and it used to
+be paid *twice* per session (once by `suggest`, once by
+`rateGuessRow(state, 0, …)` rating the first guess back). `book.ts`
+precomputes it offline for the two positions that dominate that cost:
+
+- **Move 0** (`OpeningBook.move0`, a `Float64Array` indexed by dictionary
+  word index) — the empty-board entropy of every word, for every
+  `lang-len` config, with no board-count/opener dependency. Reproduces the
+  live `entropyOf` score **bit-for-bit**.
+- **Move 1** (`OpeningBook.move1`, a `Move1Book`) — the entropy of every
+  word against every feedback pattern reachable from the fixed opener
+  (`openers.json`'s or, if there is none, the live solver's own first
+  move), for word lengths up to `MOVE1_MAX_LEN` (6 — longer configs are
+  already cheap enough at move 1 that a book isn't worth the asset size).
+  Values are `Float32Array`, validated to preserve the live *top-50
+  ordering* rather than bit-exactness (the precision drop from f64→f32 can
+  reorder scores far down the ranking without changing which word the
+  solver would actually pick).
+
+`bookLookup(state, dict, book, unsolved)` returns an `EntropyLookup`
+(`(wordIdx, slot) => number`) or `null`. It is consumed in exactly one
+place — `scoreWordAgainst` calls it instead of `entropyOf` when non-null —
+so urgency, the solve bonus, `isCandidateFor` and the accumulation loop all
+run exactly as they do on the live path; that narrow substitution is what
+makes move-0 output bit-exact rather than merely close. Guards fall back to
+live scoring (return `null`) on:
+
+- a `dictHash` mismatch (the book was built from a different dictionary
+  than the one passed in);
+- a first guess that is not the book's opener (move 1 only);
+- a board pattern absent from the book (move 1 only); and
+- any unsolved board with `tier !== 1` (move 1 only) — the book is built
+  over T1 candidates only, so a board `boardView` has widened to T1+T2
+  would get wrong entropies from it; the whole book is declined rather
+  than mixing candidate sets across boards.
+
+Assets are generated by `npx tsx bin/build-book.ts --config all`, which
+writes `dict/assets/<lang>-<len>.m0.bin` for all ten configs and
+`dict/assets/<lang>-<len>.m1.bin.gz` for the six configs at or under
+`MOVE1_MAX_LEN`, plus a `dict/assets/books.json` manifest recording which
+of the two each config has. **The book is derived from the dictionary
+*and* from the entropy scoring constants** (`SOLVE_BONUS`,
+`URGENCY_WEIGHT`, `answerWeight`, `entropyOf` itself) — `dictHash` only
+catches the former going stale. See CLAUDE.md's "Dictionaries and
+openers" section for the required generation order
+(`dict/build.ts` → `bin/build-openers.ts` → `bin/build-book.ts`) and
+`src/book.test.ts` for the equivalence tests that catch the latter.
 
 ## Deep vs lite mode
 
@@ -123,7 +189,7 @@ plausible/common words, while still being able to solve rarer answers.
 flat, heavily discounted prior (`T2_FACTOR = 0.05`), so entropy scoring
 still favors common answers even after widening.
 
-## Rebuilding dictionaries and openers
+## Rebuilding dictionaries, openers and the opening book
 
 Dictionaries are derived from vendored raw word lists (see
 `dict/SOURCES.md` for exact sources, licenses, and download dates):
@@ -148,6 +214,21 @@ npx tsx bin/build-openers.ts --config ru-5x4 --games 200
 Re-run `build-openers.ts` after any change to the dictionaries or the
 entropy/endgame scoring logic, since a stale opener could disagree with
 what the live solver would now compute as the best first move.
+
+The opening book (`src/book.ts`) is precomputed last, since it depends on
+the opener sequence `build-openers.ts` just wrote:
+
+```bash
+npx tsx bin/build-book.ts --config all
+# or a single config, e.g.:
+npx tsx bin/build-book.ts --config ru-5
+```
+
+The full pipeline is strictly ordered — `dict/build.ts` →
+`bin/build-openers.ts` → `bin/build-book.ts` — and must be re-run in that
+order after any dictionary or scoring change. See "Opening book" above for
+what the book stores and why a stale one is a silent-override risk exactly
+like a stale `openers.json`.
 
 ## Running simulations
 

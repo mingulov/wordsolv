@@ -396,3 +396,77 @@ actual app the table is built once per session and amortized across a
 single game — that one-time 3.5-25.7 s cost is exactly what this change
 removes from the default (`auto`) path; it does not reappear anywhere
 else, since Deep is now opt-in only.
+
+## Opening book (2026-07-22)
+
+Before the book, the very first suggestion of every session was the slowest
+thing the solver ever does: `scoreAllWords` at move 0 scores every
+dictionary word against every board's full, unfiltered candidate set (`n ×
+t1Count × boardCount` calls to `scoreGuess`), and it was paid **twice** —
+once by `suggest`, once more by `rateGuessRow(state, 0, ...)` rating the
+player's first guess back (the web worker rates every played row, and
+`ratingsCache` only prevents a *third* repeat). Measured with `npx tsx`, 4
+boards, lite options, no pattern table:
+
+| | ru-4 | ru-5 | ru-6 | ru-7 | ru-8 | en-4 | en-5 | en-6 | en-7 | en-8 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| move-0 scan, before | 2.1s | 11.9s | 26.2s | 43.8s | 54.4s | 5.7s | 26.6s | 57.8s | 104s | 152s |
+
+move-0 scan, after (book): **1.1-2.7 ms across all ten configs.**
+
+A secondary cost sat behind it: move-1 entropy (scoring against the ~200
+candidates left after the opener) averaged 169-674 ms across configs;
+after the move-1 book it is 1.6-7.4 ms.
+
+`book.ts` (Tasks 1-13) precomputes both positions:
+
+- **Move 0** — `entropyOf` for every word against the full T1 pool, for all
+  ten `lang-len` configs, stored as `Float64Array`. `bookLookup` feeds it
+  into `scoreWordAgainst` in place of the live `entropyOf` call and nothing
+  else in the scoring path changes, so move-0 output **reproduces the live
+  score bit-for-bit** — this is an equivalence test in `src/book.test.ts`
+  (`'move-0 book equivalence'`), not just a design intent.
+- **Move 1** — `entropyOf` for every word against every feedback pattern
+  reachable from the fixed opener, for word lengths ≤ `MOVE1_MAX_LEN` (6;
+  longer configs are already cheap enough at move 1 not to need it), stored
+  as `Float32Array`. The precision drop is validated empirically rather
+  than proven exact: `src/book.test.ts`'s `'move-1 book equivalence'` suite
+  samples 20 positions per config (seeded, `ru-4` and `ru-5` — the two
+  configs checked this way, chosen because a live move-1 scan costs
+  ~0.2-0.6 s per position, so per-position trials buy more confidence than
+  covering all six configs at this cost) and asserts the book's top-50
+  ranking matches the live top-50 ranking exactly. All six configs'
+  generated assets are additionally checked structurally and by sampled
+  value in the `'move-1 assets'` suite.
+
+Guards fall back to live scoring (see `book.ts`/`CLAUDE.md`) on a
+`dictHash` mismatch, a first guess other than the book's opener, a board
+pattern absent from the book, or any unsolved board on tier 2 (the book is
+T1-only) — each has a dedicated test in `src/book.test.ts`.
+
+### Asset sizes
+
+Move-0: 800 KB total across all ten configs. Move-1 (gzipped, six configs
+only):
+
+| ru-4 | ru-5 | ru-6 | en-4 | en-5 | en-6 |
+|---|---|---|---|---|---|
+| 138 KB | 694 KB | 1.94 MB | 370 KB | 1.97 MB | 5.52 MB |
+
+Committed assets (move-0 + move-1 + `books.json`) total ~11 MB.
+
+### Play quality: unaffected by construction, not re-measured here
+
+This task did not re-run the 1000-game or 200-game `bin/simulate.ts`
+regressions — the book is not expected to move any of them, for the same
+reason it doesn't need to: move-0 book output is bit-exact with the live
+path (proven by the equivalence test, not by re-running games), and move-1
+book output is only used where its top-50 ordering has been checked against
+the live path (same mechanism). `src/benchmark.test.ts`'s seeded 200-game
+regression gates (ru-5x4 deep ≥ 0.98 winRate, en-5x1 lite ≥ 0.95 winRate /
+≤ 4.5 avgGuesses) therefore need no floor changes for this work, and pass
+unchanged as part of the fast `npx vitest run` suite alongside every
+`book.test.ts` case. Any real behavior change in this plan came from the
+endgame recalibration or the `auto`-mode change above, not from the book
+itself — the book's entire job is to make the *same* answers cheaper to
+compute, not different ones.

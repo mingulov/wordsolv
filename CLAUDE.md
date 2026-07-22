@@ -45,6 +45,15 @@ Core data model:
 2. **endgame** — when the joint candidate product across unsolved boards fits `opts.endgameJointLimit`, `endgameSearch` does an exact memoized EV search (win prob first, expected guesses second) under a `timeBudgetMs` deadline; returns `null` on timeout and falls through.
 3. **entropy** — `suggestEntropy` scores every word by weighted Shannon entropy across all unsolved boards × an urgency factor × a solve bonus. In deep mode the top-K are re-ranked by a sampled 2-ply lookahead (`refineTwoPly`).
 
+**Opening book** (`book.ts`) — precomputed `entropyOf` results for the two positions that
+dominate cost: the empty board (move 0, every config) and each pattern reachable from the fixed
+opener (move 1, word lengths ≤ 6). `bookLookup` returns an `EntropyLookup` that replaces *only*
+the `entropyOf` call inside `scoreWordAgainst`; urgency, the solve bonus, `isCandidateFor` and
+sorting all run unchanged, which is why move-0 output is bit-exact. Guards fall back to live
+scoring on a `dictHash` mismatch, a first guess other than the book's opener, or a board pattern
+absent from the book (which is exactly the T2-widening case). Assets live in `dict/assets/` and
+are listed in `books.json`.
+
 **Deep mode requires a `PatternTable`** (`buildPatternTable(dict)`, a precomputed guess×answer matrix). Without a table passed to `suggest`, 2-ply is silently skipped and scoring falls back to live `scoreGuess`. `buildPatternTable` returns `null` when even the words×T1 fallback exceeds the byte budget — callers must degrade to lite.
 
 **Determinism is a hard invariant.** Simulations, 2-ply sampling and opener building must reproduce exactly for a given seed: use `mulberry32`/`djb2`/`pickDistinct` from `random.ts`, never `Math.random()` or `Date.now()` inside `src/`. The one accepted nondeterminism is `endgame.ts`'s `performance.now()` deadline (machine-speed dependent); regression floors carry headroom for it.
@@ -57,11 +66,19 @@ Support modules layered on the same primitives: `rate.ts` (retro-scores each pla
 
 After changing dictionaries *or* entropy/endgame scoring, regenerate openers: `npx tsx bin/build-openers.ts --config all --games 200`. A stale `openers.json` silently overrides a now-better first move. Then re-run benchmarks and update `BENCHMARKS.md`.
 
+Then regenerate the opening book: `npx tsx bin/build-book.ts --config all`. The pipeline is
+strictly ordered — `dict/build.ts` → `bin/build-openers.ts` → `bin/build-book.ts` — because the
+book stores `entropyOf` results computed from the dictionary *and* the current scoring constants.
+A stale `*.m0.bin` / `*.m1.bin.gz` is a second way, alongside a stale `openers.json`, to silently
+override current scoring. `dictHash` in each asset catches dictionary changes but **not** edits to
+`SOLVE_BONUS`, `URGENCY_WEIGHT`, `answerWeight` or `entropyOf`; the equivalence tests in
+`src/book.test.ts` are what catch those.
+
 ### Web app (`apps/web`)
 
 React 18 + Vite 6 + vite-plugin-pwa. Two screens only: `SetupScreen` ↔ `GameScreen` (`App.tsx`), with settings/i18n via context. UI strings live in `src/i18n/{en,ru}.ts` — both files must stay key-identical.
 
-Solving runs in a Web Worker (`src/worker/`). The protocol is request/reply keyed by a monotonically increasing `id`: the worker drops queued requests older than `latest`, and `useSolver` ignores replies whose id isn't current. The worker caches dictionaries, pattern tables and per-row ratings per language+length across requests, so it is stateful and long-lived; `useSolver` respawns it once on crash and replays the last request.
+Solving runs in a Web Worker (`src/worker/`). The protocol is request/reply keyed by a monotonically increasing `id`: the worker drops queued requests older than `latest`, and `useSolver` ignores replies whose id isn't current. The worker caches dictionaries, opening books, pattern tables and per-row ratings per language+length across requests, so it is stateful and long-lived; `useSolver` respawns it once on crash and replays the last request.
 
 `gameReducer.ts` owns the board-editing rules. The key one: once a board's row is all-green (its *solve row*), **every later row on that board is derived** — recomputed via `scoreGuess` against the solved word and locked against editing. Un-solving a row flags the later rows for user recheck instead of silently keeping stale colors.
 
