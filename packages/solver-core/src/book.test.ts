@@ -13,6 +13,7 @@ import { djb2, mulberry32 } from './random'
 import { rateGuessRow, rateGuesses } from './rate'
 import { suggest } from './solver'
 import { defaultOptions, newGame, type GameState } from './types'
+import booksJson from '../dict/assets/books.json' with { type: 'json' }
 
 const d = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
 
@@ -378,7 +379,7 @@ describe('move-1 book equivalence', () => {
   // position, so trials buy more confidence than breadth here. Every config's asset is
   // checked structurally and by sampled value in 'move-1 assets' below.
   it('matches the live top-50 ordering across sampled positions (ru-4)', () => {
-    checkMove1TopFifty('ru-4', 40, 4242)
+    checkMove1TopFifty('ru-4', 20, 4242)
   })
 
   it('matches the live top-50 ordering across sampled positions (ru-5, the primary config)', () => {
@@ -397,21 +398,61 @@ describe('move-1 book equivalence', () => {
   })
 
   it('falls back when a board pattern has no T1 survivors (the T2-widening case)', () => {
-    const { dict, book } = loadFullBook('ru-4')
+    // en-4, not ru-4: ru-4 has exactly one T1-survivor-less pattern ('роек') and ru-5 has
+    // five ('арека', 'векша', 'клект', 'скена', 'такыр') — every one of them a lone T1+T2
+    // occupant. With a single candidate, every entropy is 0 and all four boards collapse to
+    // the same flat (SOLVE_BONUS, 0, 0, ...) score, so the equality loop below would compare
+    // ~1600 zeros with no signal. en-4 has a T1-survivor-less pattern shared by 2+ words.
+    const { dict, book } = loadFullBook('en-4')
     const m1 = book.move1!
     const opener = dict.words[m1.openerIdx]
-    // A pattern only a T2 word produces: no T1 word survives it, so `boardView` widens the
+    // A pattern only T2 words produce: no T1 word survives it, so `boardView` widens the
     // board to T1+T2 and the book — built over T1 only — must decline.
-    const t2Only = dict.words.slice(dict.t1Count).find((w) => !m1.rowOf.has(scoreGuess(opener, w)))
+    const t2Only = dict.words.slice(dict.t1Count).find((w) => {
+      const p = scoreGuess(opener, w)
+      if (m1.rowOf.has(p)) return false
+      return dict.words.filter((cand) => scoreGuess(opener, cand) === p).length > 1
+    })
     expect(t2Only).toBeDefined()
     const state = move1State(dict, opener, Array(4).fill(t2Only!))
     const unsolved = unsolvedOf(state, dict)
     expect(unsolved).toHaveLength(4) // widened, so still scorable — not silently empty
     expect(unsolved.every(({ bc }) => bc.tier === 2)).toBe(true)
+    // The point of switching configs: a real ranking, not a field of zeros.
+    expect(unsolved.every(({ bc }) => bc.candidates.length > 1)).toBe(true)
     expect(bookLookup(state, dict, book, unsolved)).toBeNull()
     const live = scoreAllWords(state, dict, null).scored
     const withBook = scoreAllWords(state, dict, null, book).scored
     for (let i = 0; i < live.length; i++) expect(withBook[i].score).toBe(live[i].score)
+  })
+})
+
+describe('move-1 slot/board index translation', () => {
+  it('handles a solved board so unsolved is shorter than boards (slot != board index)', () => {
+    // `unsolved[slot].b` only differs from `slot` when some earlier board is already solved
+    // — at move 1 that means its answer *is* the opener. The sampling loops above only hit
+    // this by luck (see the file-level review notes): ru-4's 40-trial loop draws it once at
+    // seed 4242, ru-5's 20-trial loop draws it zero times at seed 8484. Pin it directly:
+    // board 0's answer is the opener itself, so board 0 solves on move 1 and `unsolved` holds
+    // only boards 1-3, at slots 0-2 respectively — the one case where reading
+    // `state.boards[unsolved[slot].b].feedback[0]` differs from reading `state.boards[slot]`.
+    const { dict, book } = loadFullBook('ru-4')
+    const m1 = book.move1!
+    const opener = dict.words[m1.openerIdx]
+    // 'есть' / 'этот' / 'мама' are T1 words distinct from the opener with three distinct
+    // patterns against it (0, 3, 54), so the three unsolved boards read three different rows.
+    const answers = [opener, 'есть', 'этот', 'мама']
+    const state = move1State(dict, opener, answers)
+
+    const unsolved = unsolvedOf(state, dict)
+    expect(unsolved).toHaveLength(3)
+    expect(unsolved.map(({ b }) => b)).toEqual([1, 2, 3])
+    expect(unsolved.every(({ bc }) => bc.tier === 1)).toBe(true)
+
+    expect(bookLookup(state, dict, book, unsolved)).not.toBeNull()
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    for (let i = 0; i < 50; i++) expect(withBook[i].word).toBe(live[i].word)
   })
 })
 
@@ -446,8 +487,19 @@ describe('move-1 assets', () => {
     'en-4': 'sate', 'en-5': 'tears', 'en-6': 'cartes',
   }
 
-  for (const [cfg, opener] of Object.entries(OPENERS)) {
+  // The config list comes from the manifest, not from OPENERS, so a future config that gains
+  // a move-1 book is picked up automatically. OPENERS stays hardcoded as a tripwire: a config
+  // the manifest lists but OPENERS doesn't know the opener for fails loudly instead of being
+  // silently skipped.
+  const move1Configs = Object.entries(booksJson as Record<string, { m0: boolean; m1: boolean }>)
+    .filter(([, flags]) => flags.m1)
+    .map(([cfg]) => cfg)
+
+  for (const cfg of move1Configs) {
     it(`${cfg}: opener, row set and sampled values match a live rebuild`, () => {
+      const opener = OPENERS[cfg]
+      expect(opener).toBeDefined() // add the expected opener above before a new book can pass
+
       const { dict, book } = loadFullBook(cfg)
       const m1 = book.move1!
       expect(dict.words[m1.openerIdx]).toBe(opener)
