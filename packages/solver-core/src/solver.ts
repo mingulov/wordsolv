@@ -1,3 +1,4 @@
+import type { OpeningBook } from './book'
 import { type Dictionary } from './dictionary'
 import { endgameSearch } from './endgame'
 import { boardCandidatesOf, suggestEntropy } from './entropy'
@@ -26,6 +27,7 @@ export function suggest(
   dict: Dictionary,
   opts: SolverOptions = defaultOptions('lite'),
   table: PatternTable | null = null,
+  book: OpeningBook | null = null,
 ): SolveResult {
   validate(state)
   const boards = boardCandidatesOf(state, dict)
@@ -49,7 +51,7 @@ export function suggest(
         source: 'opener',
         isCandidateFor: boards.flatMap((bc, b) => (bc.candidates.includes(word) ? [b] : [])),
       }
-      const rest = suggestEntropy(state, dict, opts, table, 'main').filter((s) => s.word !== word)
+      const rest = suggestEntropy(state, dict, opts, table, 'main', book).filter((s) => s.word !== word)
       return { suggestions: [opener, ...rest.slice(0, opts.topN - 1)], boards: summaries }
     }
   }
@@ -65,7 +67,7 @@ export function suggest(
     const guessesLeft = state.maxGuesses - state.guesses.length
     const eg = endgameSearch(active.map((bc) => bc.candidates), guessesLeft, dict, opts)
     if (eg) {
-      const rest = suggestEntropy(state, dict, opts, table, 'main').filter((s) => s.word !== eg.word)
+      const rest = suggestEntropy(state, dict, opts, table, 'main', book).filter((s) => s.word !== eg.word)
       const top: Suggestion = {
         word: eg.word,
         score: eg.winProb,
@@ -77,5 +79,5 @@ export function suggest(
   }
 
   // Phase 3: entropy.
-  return { suggestions: suggestEntropy(state, dict, opts, table, 'main'), boards: summaries }
+  return { suggestions: suggestEntropy(state, dict, opts, table, 'main', book), boards: summaries }
 }

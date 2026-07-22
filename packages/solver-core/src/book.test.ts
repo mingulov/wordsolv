@@ -9,6 +9,7 @@ import { makeDictionary, parseDictAsset, type Dictionary } from './dictionary'
 import { boardCandidatesOf, scoreAllWords, type BoardCandidates } from './entropy'
 import { scoreGuess } from './pattern'
 import { rateGuessRow, rateGuesses } from './rate'
+import { suggest } from './solver'
 import { defaultOptions, newGame, type GameState } from './types'
 
 const d = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
@@ -204,5 +205,94 @@ describe('rating consistency with the book', () => {
     const rows = rateGuesses(state, dict, defaultOptions('lite'), null, book)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toEqual(rateGuessRow(state, 0, dict, defaultOptions('lite'), null, book))
+  })
+})
+
+describe('suggest with a book', () => {
+  it('returns the same suggestions as the live path at move 0', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    const live = suggest(state, dict, defaultOptions('lite'), null, null)
+    const withBook = suggest(state, dict, defaultOptions('lite'), null, book)
+    expect(withBook.suggestions.map((s) => s.word)).toEqual(live.suggestions.map((s) => s.word))
+    expect(withBook.suggestions.map((s) => s.score)).toEqual(live.suggestions.map((s) => s.score))
+    expect(withBook.boards.map((b) => b.candidatesLeft)).toEqual(live.boards.map((b) => b.candidatesLeft))
+  })
+
+  it('is not vacuous: a perturbed book entry changes suggest scores (entropy phase, ru-4 has no opener entry)', () => {
+    // ru-4 has no entry in openers.json, so move 0 here goes straight to Phase 3 (entropy).
+    // The equivalence test above is bit-identical to live scoring by construction (book
+    // values are computed to match live entropy exactly), so it cannot distinguish "suggest
+    // reads the book" from "suggest ignores its book argument and reads live scoring that
+    // happens to agree numerically". Perturb one entry and require the reported score for
+    // that exact word to move.
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    const opts = defaultOptions('lite')
+    const live = suggest(state, dict, opts, null, null)
+    expect(live.suggestions[0].source).toBe('entropy') // sanity: confirms this is the entropy-phase call site
+
+    const target = live.suggestions[0]
+    const targetIdx = dict.index.get(target.word)!
+    const values = new Float64Array(book.move0)
+    values[targetIdx] += 1e-9
+    const tweaked: OpeningBook = { ...book, move0: values }
+
+    const withTweak = suggest(state, dict, opts, null, tweaked)
+    const tweakedEntry = withTweak.suggestions.find((s) => s.word === target.word)
+    expect(tweakedEntry).toBeDefined()
+    expect(tweakedEntry!.score).not.toBe(target.score)
+  })
+
+  it('threads the book through the opener phase too (ru-5x4 has an opener entry)', () => {
+    // Separate call site from the previous test: openerKey('ru-5x4') is in openers.json,
+    // so move 0 here takes Phase 1 (opener) and calls suggestEntropy for the *rest* of the
+    // top-N list. Perturb a word we know appears in that rest list and require its score to move.
+    const { dict, book } = loadBook('ru-5')
+    const state = newGame('ru', 5, 4)
+    const opts = defaultOptions('lite')
+    const live = suggest(state, dict, opts, null, null)
+    expect(live.suggestions[0].source).toBe('opener') // sanity: confirms this is the opener-phase call site
+    expect(live.suggestions.length).toBeGreaterThan(1)
+
+    const restTarget = live.suggestions[1]
+    const targetIdx = dict.index.get(restTarget.word)!
+    const values = new Float64Array(book.move0)
+    values[targetIdx] += 1e-9
+    const tweaked: OpeningBook = { ...book, move0: values }
+
+    const withTweak = suggest(state, dict, opts, null, tweaked)
+    expect(withTweak.suggestions[0].source).toBe('opener')
+    expect(withTweak.suggestions[0].word).toBe(live.suggestions[0].word) // opener word itself is unaffected
+    const tweakedEntry = withTweak.suggestions.find((s) => s.word === restTarget.word)
+    expect(tweakedEntry).toBeDefined()
+    expect(tweakedEntry!.score).not.toBe(restTarget.score)
+  })
+
+  it('threads the book through the endgame phase too (third, distinct call site)', () => {
+    // Tiny fixture (mirrors `d` above) whose 3-candidate single board fits well inside
+    // opts.endgameJointLimit, so Phase 2 (endgame) fires at move 0 and calls suggestEntropy
+    // for the *rest* of the top-N list, same shape as the opener-phase test but a different
+    // call site in solver.ts.
+    const dict = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
+    const state = newGame('en', 3, 1, 6)
+    const opts = defaultOptions('lite')
+    const live = suggest(state, dict, opts, null, null)
+    expect(live.suggestions[0].source).toBe('endgame') // sanity: confirms this is the endgame-phase call site
+
+    const restTarget = live.suggestions.find((s) => s.source === 'entropy')!
+    expect(restTarget).toBeDefined()
+    const targetIdx = dict.index.get(restTarget.word)!
+    const book: OpeningBook = { dictHash: dictHashOf(dict), move0: new Float64Array(dict.words.length), move1: null }
+    const values = new Float64Array(book.move0)
+    values[targetIdx] += 1e-9
+    const tweaked: OpeningBook = { ...book, move0: values }
+
+    const withTweak = suggest(state, dict, opts, null, tweaked)
+    expect(withTweak.suggestions[0].source).toBe('endgame')
+    expect(withTweak.suggestions[0].word).toBe(live.suggestions[0].word) // endgame word itself is unaffected
+    const tweakedEntry = withTweak.suggestions.find((s) => s.word === restTarget.word)
+    expect(tweakedEntry).toBeDefined()
+    expect(tweakedEntry!.score).not.toBe(restTarget.score)
   })
 })
