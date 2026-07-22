@@ -42,9 +42,19 @@ describe('game state', () => {
     expect(() => parseGameState(json)).toThrow(/feedback/)
   })
   it('defaultOptions differ by mode', () => {
-    expect(defaultOptions('lite').endgameJointLimit).toBe(100_000)
-    expect(defaultOptions('deep').endgameJointLimit).toBe(2_000_000)
     expect(defaultOptions('deep').twoPly).toBe(true)
     expect(defaultOptions('lite').twoPly).toBe(false)
+    expect(defaultOptions('deep').twoPlyK).toBeGreaterThan(0)
+    expect(defaultOptions('lite').twoPlyK).toBe(0)
+  })
+  it('endgame engagement is calibrated, not mode-dependent', () => {
+    // Both modes share these: they describe where the endgame search finishes, which
+    // has nothing to do with 2-ply refinement. Values come from the measured sweep in
+    // BENCHMARKS.md "Endgame calibration" - changing them changes how the solver plays,
+    // so re-run bin/calibrate-endgame.ts and the benchmark suite before touching them.
+    for (const mode of ['lite', 'deep'] as const) {
+      expect(defaultOptions(mode).endgameJointLimit).toBe(100)
+      expect(defaultOptions(mode).endgameNodeBudget).toBe(1_200_000)
+    }
   })
 })

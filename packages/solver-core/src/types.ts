@@ -37,6 +37,13 @@ export interface SolveResult {
 export interface SolverOptions {
   mode: 'lite' | 'deep'
   topN: number
+  /**
+   * Engage the exact endgame search only while the joint candidate product across
+   * unsolved boards is at most this. Calibrated (`bin/calibrate-endgame.ts`), not
+   * guessed: above ~100 the search almost never finishes, and a search that does
+   * not finish returns null and falls through to entropy having burnt its whole
+   * time budget for nothing. See BENCHMARKS.md "Endgame calibration".
+   */
   endgameJointLimit: number
   twoPly: boolean
   twoPlyK: number
@@ -44,7 +51,9 @@ export interface SolverOptions {
   timeBudgetMs: number
   /**
    * Deterministic cap on endgame search nodes. Counted at the cartesian-product leaf,
-   * where the work actually happens — a per-guess counter bounds nothing.
+   * where the work actually happens — a per-guess counter bounds nothing. This is a
+   * backstop, not the gate: `endgameJointLimit` is what decides engagement, and the
+   * default sits above every search that was observed to complete inside that limit.
    */
   endgameNodeBudget: number
   /**
@@ -54,10 +63,20 @@ export interface SolverOptions {
   disableOpeners?: boolean
 }
 
+/**
+ * `endgameJointLimit` / `endgameNodeBudget` are shared by both modes: they describe
+ * where the endgame search finishes, which is a property of the search itself, not
+ * of whether 2-ply entropy refinement is switched on. Both come from the measured
+ * sweep in BENCHMARKS.md "Endgame calibration" — do not adjust them by feel.
+ */
+const ENDGAME_JOINT_LIMIT = 100
+const ENDGAME_NODE_BUDGET = 1_200_000
+
 export function defaultOptions(mode: 'lite' | 'deep'): SolverOptions {
+  const endgame = { endgameJointLimit: ENDGAME_JOINT_LIMIT, endgameNodeBudget: ENDGAME_NODE_BUDGET }
   return mode === 'deep'
-    ? { mode, topN: 10, endgameJointLimit: 2_000_000, twoPly: true, twoPlyK: 16, twoPlySamples: 48, timeBudgetMs: 1500, endgameNodeBudget: 3_000_000 }
-    : { mode, topN: 10, endgameJointLimit: 100_000, twoPly: false, twoPlyK: 0, twoPlySamples: 0, timeBudgetMs: 1500, endgameNodeBudget: 3_000_000 }
+    ? { mode, topN: 10, ...endgame, twoPly: true, twoPlyK: 16, twoPlySamples: 48, timeBudgetMs: 1500 }
+    : { mode, topN: 10, ...endgame, twoPly: false, twoPlyK: 0, twoPlySamples: 0, timeBudgetMs: 1500 }
 }
 
 export function defaultMaxGuesses(boardCount: number): number {
