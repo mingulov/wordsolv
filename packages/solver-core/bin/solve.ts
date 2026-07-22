@@ -6,6 +6,7 @@
  */
 import { existsSync, readFileSync, watchFile, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { dictHashOf, parseMove0, type OpeningBook } from '../src/book'
 import { parseDictAsset, type Dictionary } from '../src/dictionary'
 import { findContradictions, gameFileTemplate, hasGuessLines, parseGameFile, unknownWords } from '../src/gamefile'
 import { allGreen } from '../src/pattern'
@@ -72,6 +73,7 @@ if (initCfg !== null) {
 
 const dictCache = new Map<string, Dictionary>()
 const tableCache = new Map<string, PatternTable | null>()
+const bookCache = new Map<string, OpeningBook | null>()
 
 function loadDict(lang: Language, len: number): Dictionary {
   const key = `${lang}-${len}`
@@ -81,6 +83,22 @@ function loadDict(lang: Language, len: number): Dictionary {
     dictCache.set(key, d)
   }
   return d
+}
+
+/** Reads `<key>.m0.bin` next to the dictionary. Missing or stale files degrade to live scoring. */
+function loadBook(key: string, dict: Dictionary): OpeningBook | null {
+  if (bookCache.has(key)) return bookCache.get(key) ?? null
+  let book: OpeningBook | null = null
+  try {
+    const raw = readFileSync(join(import.meta.dirname, '..', 'dict', 'assets', `${key}.m0.bin`))
+    const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer
+    const move0 = parseMove0(buf, dict)
+    if (move0) book = { dictHash: dictHashOf(dict), move0, move1: null }
+  } catch {
+    book = null
+  }
+  bookCache.set(key, book)
+  return book
 }
 
 /** The guess word colored per one board's pattern (plus plain symbols under NO_COLOR). */
@@ -100,10 +118,10 @@ function renderCell(word: string, pattern: number): string {
 function run(): void {
   const { state, mode, guessLines, warnings } = parseGameFile(readFileSync(file!, 'utf8'))
   const dict = loadDict(state.language, state.wordLength)
+  const key = `${state.language}-${state.wordLength}`
   let opts = defaultOptions(mode)
   let table: PatternTable | null = null
   if (mode === 'deep') {
-    const key = `${state.language}-${state.wordLength}`
     if (!tableCache.has(key)) {
       console.log('building pattern table (a few seconds, once per language/length)…')
       tableCache.set(key, buildPatternTable(dict))
@@ -114,7 +132,8 @@ function run(): void {
       opts = defaultOptions('lite')
     }
   }
-  const result = suggest(state, dict, opts, table)
+  const book = loadBook(key, dict)
+  const result = suggest(state, dict, opts, table, book)
 
   for (let g = 0; g < state.guesses.length; g++) {
     const cells = state.boards.map((b) => renderCell(state.guesses[g], b.feedback[g]))
@@ -150,7 +169,7 @@ function run(): void {
     }
   })
 
-  const ratings = rateGuesses(state, dict, opts, table)
+  const ratings = rateGuesses(state, dict, opts, table, book)
   if (ratings.length > 0) {
     console.log(`\n${C.bold('your guesses')}:`)
     ratings.forEach((r, i) => {
