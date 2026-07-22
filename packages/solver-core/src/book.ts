@@ -114,9 +114,9 @@ export function parseMove1(buf: ArrayBuffer, dict: Dictionary): Move1Book | null
  * caller must fall back to live scoring.
  *
  * move-0 applies on an empty board. move-1 applies when exactly the book's opener has
- * been played and every unsolved board's pattern is present in the book. A pattern with
- * no T1 survivors is absent by construction, so the states where `boardView` widens to
- * T2 fall back automatically.
+ * been played, every unsolved board is still on tier 1, and every unsolved board's
+ * pattern is present in the book. Books are built over T1 only, so a board that
+ * `boardView` widened to T1+T2 is rejected outright and falls back to live scoring.
  */
 export function bookLookup(
   state: GameState,
@@ -127,6 +127,8 @@ export function bookLookup(
   if (!book || book.dictHash !== dictHashOf(dict)) return null
 
   if (state.guesses.length === 0) {
+    // No tier check needed: with no guesses played T1 cannot have been filtered empty,
+    // so `boardView` never widens and every unsolved board is tier 1.
     const m0 = book.move0
     return (wordIdx) => m0[wordIdx]
   }
@@ -134,6 +136,9 @@ export function bookLookup(
   const m1 = book.move1
   if (!m1 || state.guesses.length !== 1) return null
   if (dict.index.get(state.guesses[0]) !== m1.openerIdx) return null
+  // Book values were computed over T1 only. A tier-2 board has a wider candidate set, so
+  // its entropies would be wrong: refuse the whole book rather than mix candidate sets.
+  for (const { bc } of unsolved) if (bc.tier !== 1) return null
   const rows = new Int32Array(unsolved.length)
   for (let slot = 0; slot < unsolved.length; slot++) {
     const row = m1.rowOf.get(state.boards[unsolved[slot].b].feedback[0])
