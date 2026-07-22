@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import {
   bookLookup, dictHashOf, parseMove0, parseMove1, serializeMove0, serializeMove1,
   type OpeningBook,
 } from './book'
 import { makeDictionary, parseDictAsset, type Dictionary } from './dictionary'
-import { boardCandidatesOf, scoreAllWords, type BoardCandidates } from './entropy'
+import { boardCandidatesOf, entropyOf, scoreAllWords, weightsFor, type BoardCandidates } from './entropy'
 import { scoreGuess } from './pattern'
+import { djb2, mulberry32 } from './random'
 import { rateGuessRow, rateGuesses } from './rate'
 import { suggest } from './solver'
 import { defaultOptions, newGame, type GameState } from './types'
@@ -84,6 +86,45 @@ function loadBook(cfg: string): { dict: ReturnType<typeof parseDictAsset>; book:
   const move0 = parseMove0(buf, dict)
   if (!move0) throw new Error(`move-0 book failed to parse for ${cfg}`)
   return { dict, book: { dictHash: dictHashOf(dict), move0, move1: null } }
+}
+
+const fullBooks = new Map<string, { dict: Dictionary; book: OpeningBook }>()
+
+/**
+ * `loadBook` plus the gzipped move-1 asset. Cached because several blocks below share a
+ * config and the ru-4/ru-5 assets are a few MB once inflated.
+ */
+function loadFullBook(cfg: string): { dict: Dictionary; book: OpeningBook } {
+  const hit = fullBooks.get(cfg)
+  if (hit) return hit
+  const { dict, book } = loadBook(cfg)
+  const raw = gunzipSync(readFileSync(join(import.meta.dirname, '..', 'dict', 'assets', `${cfg}.m1.bin.gz`)))
+  const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer
+  const move1 = parseMove1(buf, dict)
+  if (!move1) throw new Error(`move-1 book failed to parse for ${cfg}`)
+  const loaded = { dict, book: { ...book, move1 } }
+  fullBooks.set(cfg, loaded)
+  return loaded
+}
+
+/** A move-1 position: `guess` played once, each board coloured against its own answer. */
+function move1State(dict: Dictionary, guess: string, answers: string[]): GameState {
+  const state = newGame(dict.language, dict.wordLength, answers.length)
+  state.guesses = [guess]
+  state.boards = answers.map((a) => ({ feedback: [scoreGuess(guess, a)] }))
+  return state
+}
+
+/** T1 words bucketed by the pattern the opener paints on them — the builder's row layout. */
+function t1Buckets(dict: Dictionary, opener: string): Map<number, string[]> {
+  const byPattern = new Map<number, string[]>()
+  for (const word of dict.words.slice(0, dict.t1Count)) {
+    const p = scoreGuess(opener, word)
+    const arr = byPattern.get(p)
+    if (arr) arr.push(word)
+    else byPattern.set(p, [word])
+  }
+  return byPattern
 }
 
 /** The exact `unsolved` array `scoreAllWords` passes to `bookLookup`. */
@@ -295,4 +336,140 @@ describe('suggest with a book', () => {
     expect(tweakedEntry).toBeDefined()
     expect(tweakedEntry!.score).not.toBe(restTarget.score)
   })
+})
+
+/**
+ * Move-1 values are stored as f32, so unlike move-0 they are *not* bit-identical to live
+ * scores; the contract is that the rounding never reorders the head of the ranking. Checks
+ * the top 50 over `trials` seeded reachable positions.
+ */
+function checkMove1TopFifty(cfg: string, trials: number, seed: number): void {
+  const { dict, book } = loadFullBook(cfg)
+  const m1 = book.move1!
+  const opener = dict.words[m1.openerIdx]
+  const t1 = dict.words.slice(0, dict.t1Count)
+  const rng = mulberry32(seed)
+  let engaged = 0
+  let sawRounding = false
+  for (let trial = 0; trial < trials; trial++) {
+    const answers = Array.from({ length: 4 }, () => t1[Math.floor(rng() * t1.length)])
+    const state = move1State(dict, opener, answers)
+    // Not vacuous: were the book to decline, both sides would run the live path and agree
+    // trivially. Every sampled position must actually be answered out of the book.
+    expect(bookLookup(state, dict, book, unsolvedOf(state, dict))).not.toBeNull()
+    engaged++
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    expect(withBook.length).toBe(live.length)
+    for (let i = 0; i < 50; i++) expect(withBook[i].word).toBe(live[i].word)
+    if (!sawRounding) {
+      const liveByWord = new Map(live.map((s) => [s.word, s.score]))
+      sawRounding = withBook.some((s) => s.score !== liveByWord.get(s.word))
+    }
+  }
+  expect(engaged).toBe(trials)
+  // The scores themselves must *differ* somewhere: f32 storage rounds them. If they came
+  // back bit-identical to live, the values being read would not be the stored f32 ones.
+  expect(sawRounding).toBe(true)
+}
+
+describe('move-1 book equivalence', () => {
+  // Two configs rather than six: a live move-1 scan costs ~0.2 s (ru) to ~0.6 s (en) per
+  // position, so trials buy more confidence than breadth here. Every config's asset is
+  // checked structurally and by sampled value in 'move-1 assets' below.
+  it('matches the live top-50 ordering across sampled positions (ru-4)', () => {
+    checkMove1TopFifty('ru-4', 40, 4242)
+  })
+
+  it('matches the live top-50 ordering across sampled positions (ru-5, the primary config)', () => {
+    checkMove1TopFifty('ru-5', 20, 8484)
+  })
+
+  it('falls back when the played first guess is not the book opener', () => {
+    const { dict, book } = loadFullBook('ru-4')
+    const notOpener = dict.words[book.move1!.openerIdx === 0 ? 1 : 0]
+    const state = move1State(dict, notOpener, Array(4).fill(dict.words[5]))
+    expect(bookLookup(state, dict, book, unsolvedOf(state, dict))).toBeNull()
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    // The book declined, so both sides ran the live path: strict equality is right here.
+    for (let i = 0; i < live.length; i++) expect(withBook[i].score).toBe(live[i].score)
+  })
+
+  it('falls back when a board pattern has no T1 survivors (the T2-widening case)', () => {
+    const { dict, book } = loadFullBook('ru-4')
+    const m1 = book.move1!
+    const opener = dict.words[m1.openerIdx]
+    // A pattern only a T2 word produces: no T1 word survives it, so `boardView` widens the
+    // board to T1+T2 and the book — built over T1 only — must decline.
+    const t2Only = dict.words.slice(dict.t1Count).find((w) => !m1.rowOf.has(scoreGuess(opener, w)))
+    expect(t2Only).toBeDefined()
+    const state = move1State(dict, opener, Array(4).fill(t2Only!))
+    const unsolved = unsolvedOf(state, dict)
+    expect(unsolved).toHaveLength(4) // widened, so still scorable — not silently empty
+    expect(unsolved.every(({ bc }) => bc.tier === 2)).toBe(true)
+    expect(bookLookup(state, dict, book, unsolved)).toBeNull()
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    for (let i = 0; i < live.length; i++) expect(withBook[i].score).toBe(live[i].score)
+  })
+})
+
+describe('move-1 tier guard', () => {
+  it('declines the whole book when one unsolved board is on tier 2', () => {
+    const { dict, book } = loadFullBook('ru-4')
+    const m1 = book.move1!
+    const opener = dict.words[m1.openerIdx]
+    const t1 = dict.words.slice(0, dict.t1Count)
+    const state = move1State(dict, opener, [t1[0], t1[1], t1[2], t1[3]])
+    const unsolved = unsolvedOf(state, dict)
+    expect(unsolved).toHaveLength(4)
+    expect(unsolved.every(({ bc }) => bc.tier === 1)).toBe(true)
+    // Baseline: with every board on tier 1 and every pattern in the book, it engages.
+    expect(bookLookup(state, dict, book, unsolved)).not.toBeNull()
+
+    // Same position, same in-book patterns, one board reported as widened. Reached by a
+    // direct call because at move 1 a real tier-2 board always *also* carries a pattern
+    // absent from `rowOf` (rowOf's keys are exactly the patterns T1 words produce), so the
+    // pattern check would mask this guard. It is what stops a caller-supplied T1+T2 board
+    // from being scored against T1-only entropies.
+    const widened = unsolved.map(({ bc, b }, i) => ({ bc: i === 2 ? { ...bc, tier: 2 as const } : bc, b }))
+    expect(bookLookup(state, dict, book, widened)).toBeNull()
+  })
+})
+
+describe('move-1 assets', () => {
+  // Openers the assets were built with (openers.json for ru/en 5x4, best move-0 entropy
+  // otherwise). A silent opener change would make every book row wrong for that config.
+  const OPENERS: Record<string, string> = {
+    'ru-4': 'кора', 'ru-5': 'терка', 'ru-6': 'картон',
+    'en-4': 'sate', 'en-5': 'tears', 'en-6': 'cartes',
+  }
+
+  for (const [cfg, opener] of Object.entries(OPENERS)) {
+    it(`${cfg}: opener, row set and sampled values match a live rebuild`, () => {
+      const { dict, book } = loadFullBook(cfg)
+      const m1 = book.move1!
+      expect(dict.words[m1.openerIdx]).toBe(opener)
+      expect(m1.n).toBe(dict.words.length)
+
+      const buckets = t1Buckets(dict, opener)
+      expect([...m1.rowOf.keys()].sort((a, b) => a - b)).toEqual([...buckets.keys()].sort((a, b) => a - b))
+      expect(m1.values.length).toBe(buckets.size * dict.words.length)
+
+      // Spot-check stored entropies against a live recompute. Exact (not toBeCloseTo): the
+      // builder wrote Float64 entropies into a Float32Array, which rounds exactly as
+      // Math.fround does. This pins the row-major (pattern, dictionary index) layout that
+      // `bookLookup` assumes, for every config.
+      const patterns = [...m1.rowOf.keys()]
+      const rng = mulberry32(djb2(cfg))
+      for (let k = 0; k < 8; k++) {
+        const p = patterns[Math.floor(rng() * patterns.length)]
+        const g = Math.floor(rng() * m1.n)
+        const cands = buckets.get(p)!
+        const h = entropyOf(dict.words[g], cands, weightsFor(cands, dict))
+        expect(m1.values[m1.rowOf.get(p)! * m1.n + g]).toBe(Math.fround(h))
+      }
+    })
+  }
 })
