@@ -18,6 +18,10 @@ export { rateGuessRow, rateGuesses, type GuessRating } from './rate'
 export { suggestRepairs, type TileRepair } from './repair'
 export { endgameSearch, type EndgameResult } from './endgame'
 export { buildPatternTable, DEFAULT_TABLE_BYTES, type PatternTable } from './patternTable'
+export {
+  BOOK_VERSION, MOVE1_MAX_LEN, dictHashOf, parseMove0, parseMove1, serializeMove0, serializeMove1,
+  type Move1Book, type OpeningBook,
+} from './book'
 export { mulberry32, pickDistinct } from './random'
 export { djb2 } from './random'
 export { playGame, simulateGames, type SimResult, type Suggester } from './simulate'
