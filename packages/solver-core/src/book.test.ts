@@ -8,7 +8,7 @@ import {
 import { makeDictionary, parseDictAsset, type Dictionary } from './dictionary'
 import { boardCandidatesOf, scoreAllWords, type BoardCandidates } from './entropy'
 import { scoreGuess } from './pattern'
-import { rateGuessRow } from './rate'
+import { rateGuessRow, rateGuesses } from './rate'
 import { defaultOptions, newGame, type GameState } from './types'
 
 const d = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
@@ -153,19 +153,19 @@ describe('move-0 book equivalence', () => {
 })
 
 describe('rating consistency with the book', () => {
-  it('draws the played score and the best score from the same source', () => {
-    const { dict, book } = loadBook('ru-4')
-    const state = newGame('ru', 4, 4)
-    const played = dict.words[3]
-    const answers = [11, 29, 47, 83].map((i) => dict.words[i % dict.t1Count])
-    state.guesses = [played]
-    state.boards = answers.map((a) => ({ feedback: [scoreGuess(played, a)] }))
+  const { dict, book } = loadBook('ru-4')
+  const state = newGame('ru', 4, 4)
+  const played = dict.words[3]
+  const answers = [11, 29, 47, 83].map((i) => dict.words[i % dict.t1Count])
+  state.guesses = [played]
+  state.boards = answers.map((a) => ({ feedback: [scoreGuess(played, a)] }))
+  const prefix = newGame('ru', 4, 4)
 
+  it('draws the played score and the best score from the same source', () => {
     // Prove the book actually engages for the position being rated (row 0's prefix, i.e.
     // zero guesses played) — otherwise this equivalence would hold trivially even with
     // `bookLookup` stubbed to always return null, since book values are bit-identical to
     // live ones by construction (see 'move-0 book equivalence' above).
-    const prefix = newGame('ru', 4, 4)
     expect(bookLookup(prefix, dict, book, unsolvedOf(prefix, dict))).not.toBeNull()
 
     const live = rateGuessRow(state, 0, dict, defaultOptions('lite'), null, null)
@@ -174,5 +174,35 @@ describe('rating consistency with the book', () => {
     expect(withBook!.score).toBe(live!.score)
     expect(withBook!.bestWord).toBe(live!.bestWord)
     expect(withBook!.bestScore).toBe(live!.bestScore)
+  })
+
+  it("a perturbed entry at the played word's index moves rateGuessRow's score, and scoreAllWords agrees", () => {
+    // The equivalence above is bit-identical to live scoring by construction (book values
+    // are computed to match live entropy exactly), so it cannot distinguish "mine reads
+    // the book" from "mine reads live scoring that happens to agree numerically". Perturb
+    // the *played word's* own book entry and require the reported score to move — and to
+    // match what `scoreAllWords` reports for that same word under the same perturbed book,
+    // which is the actual claim: `mine` and `scored` are drawn from one source.
+    const playedIdx = dict.index.get(played)!
+    const values = new Float64Array(book.move0) // the typed-array ctor copies, it does not alias
+    values[playedIdx] += 1e-9
+    const perturbedBook: OpeningBook = { ...book, move0: values }
+
+    const base = rateGuessRow(state, 0, dict, defaultOptions('lite'), null, book)
+    const perturbed = rateGuessRow(state, 0, dict, defaultOptions('lite'), null, perturbedBook)
+    expect(base).not.toBeNull()
+    expect(perturbed).not.toBeNull()
+    expect(perturbed!.score).not.toBe(base!.score)
+
+    const { scored } = scoreAllWords(prefix, dict, null, perturbedBook)
+    const scoredPlayed = scored.find((s) => s.word === played)
+    expect(scoredPlayed).toBeDefined()
+    expect(perturbed!.score).toBe(scoredPlayed!.score)
+  })
+
+  it('rateGuesses forwards the book consistently with rateGuessRow', () => {
+    const rows = rateGuesses(state, dict, defaultOptions('lite'), null, book)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toEqual(rateGuessRow(state, 0, dict, defaultOptions('lite'), null, book))
   })
 })
