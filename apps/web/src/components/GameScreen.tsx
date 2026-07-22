@@ -5,7 +5,7 @@ import { useSettings } from '../App'
 import { useI18n } from '../i18n'
 import { gameReducer, type GameUIState } from '../state/gameReducer'
 import { saveSession } from '../state/sessionStore'
-import { dictUrlFor, type Session } from '../state/types'
+import { dictUrlFor, m0UrlFor, m1UrlFor, type Session } from '../state/types'
 import { useSolver } from '../worker/useSolver'
 import { AboutDialog } from './AboutDialog'
 import { BoardsGrid } from './BoardsGrid'
@@ -33,7 +33,7 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
 
   useEffect(() => {
     const h = setTimeout(
-      () => requestSuggest(state, mode, dictUrlFor(state)),
+      () => requestSuggest(state, mode, dictUrlFor(state), m0UrlFor(state), m1UrlFor(state)),
       state.guesses.length === 0 ? 0 : SUGGEST_DEBOUNCE_MS,
     )
     return () => clearTimeout(h)
@@ -54,6 +54,7 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
 
   const progressText =
     progress === 'loading-dictionary' ? t('game.loadingDict')
+    : progress === 'loading-book' ? t('game.loadingBook')
     : progress === 'building-table' ? t('game.buildingTable')
     : progress === 'rating-guesses' ? t('game.ratingGuesses')
     : null
@@ -83,7 +84,7 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
       {error && (
         <p className="banner error">
           {t('game.workerError')}: {error} ({state.language}-{state.wordLength})
-          <button data-testid="game-retry" onClick={() => requestSuggest(state, mode, dictUrlFor(state))}>
+          <button data-testid="game-retry" onClick={() => requestSuggest(state, mode, dictUrlFor(state), m0UrlFor(state), m1UrlFor(state))}>
             {t('game.retry')}
           </button>
         </p>

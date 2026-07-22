@@ -8,12 +8,14 @@ export interface SuggestRequest {
   state: GameState
   mode: SolveMode
   dictUrl: string
+  m0Url: string
+  m1Url: string | null
 }
 
 export interface ProgressReply {
   id: number
   type: 'progress'
-  message: 'loading-dictionary' | 'building-table' | 'rating-guesses'
+  message: 'loading-dictionary' | 'loading-book' | 'building-table' | 'rating-guesses'
 }
 
 export interface ResultReply {

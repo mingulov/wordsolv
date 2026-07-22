@@ -37,6 +37,7 @@ export const en = {
   'game.copyFrom': 'copy board 1',
   'game.thinking': 'thinking…',
   'game.loadingDict': 'loading dictionary…',
+  'game.loadingBook': 'loading opening book…',
   'game.buildingTable': 'preparing deep analysis (a few seconds)…',
   'game.liteFallback': 'deep mode unavailable (memory) — using lite',
   'game.workerError': 'solver error',

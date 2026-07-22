@@ -35,10 +35,11 @@ const RESULT = { suggestions: [], boards: [] } as never
 
 it('delivers the latest result and drops stale replies', () => {
   const { result } = renderHook(() => useSolver())
-  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt'))
-  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt'))
+  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt', '/dict/ru-5.m0.bin', null))
+  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt', '/dict/ru-5.m0.bin', null))
   const w = FakeWorker.instances[0]
   expect(w.posted).toHaveLength(2)
+  expect(w.posted[0]).toMatchObject({ dictUrl: '/dict/ru-5.txt', m0Url: '/dict/ru-5.m0.bin', m1Url: null })
   act(() => w.emit({ id: 1, type: 'result', result: RESULT, effectiveMode: 'deep', contradictions: [], unknownGuesses: [], ratings: [], repairs: [] }))
   expect(result.current.reply).toBeNull() // stale id 1 ignored
   act(() => w.emit({ id: 2, type: 'result', result: RESULT, effectiveMode: 'lite', contradictions: [], unknownGuesses: [], ratings: [], repairs: [] }))
@@ -47,7 +48,7 @@ it('delivers the latest result and drops stale replies', () => {
 
 it('respawns once on crash and reposts the latest request', () => {
   const { result } = renderHook(() => useSolver())
-  act(() => result.current.requestSuggest(state, 'deep', '/dict/ru-5.txt'))
+  act(() => result.current.requestSuggest(state, 'deep', '/dict/ru-5.txt', '/dict/ru-5.m0.bin', null))
   act(() => FakeWorker.instances[0].onerror?.({}))
   expect(FakeWorker.instances).toHaveLength(2)
   expect(FakeWorker.instances[1].posted).toHaveLength(1)
@@ -57,7 +58,7 @@ it('respawns once on crash and reposts the latest request', () => {
 
 it('surfaces progress and error replies for the current id', () => {
   const { result } = renderHook(() => useSolver())
-  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt'))
+  act(() => result.current.requestSuggest(state, 'auto', '/dict/ru-5.txt', '/dict/ru-5.m0.bin', null))
   act(() => FakeWorker.instances[0].emit({ id: 1, type: 'progress', message: 'building-table' }))
   expect(result.current.progress).toBe('building-table')
   act(() => FakeWorker.instances[0].emit({ id: 1, type: 'error', message: 'boom' }))
@@ -67,7 +68,7 @@ it('surfaces progress and error replies for the current id', () => {
 it('clears busy timer on terminal worker crash (regression)', () => {
   vi.useFakeTimers()
   const { result } = renderHook(() => useSolver())
-  act(() => result.current.requestSuggest(state, 'deep', '/dict/ru-5.txt'))
+  act(() => result.current.requestSuggest(state, 'deep', '/dict/ru-5.txt', '/dict/ru-5.m0.bin', null))
   // First crash triggers respawn
   act(() => FakeWorker.instances[0].onerror?.({}))
   expect(FakeWorker.instances).toHaveLength(2)

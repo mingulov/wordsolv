@@ -39,6 +39,7 @@ export const ru: Record<MsgKey, string> = {
   'game.copyFrom': 'как поле 1',
   'game.thinking': 'думаю…',
   'game.loadingDict': 'загрузка словаря…',
+  'game.loadingBook': 'загрузка книги дебютов…',
   'game.buildingTable': 'подготовка глубокого анализа (несколько секунд)…',
   'game.liteFallback': 'глубокий режим недоступен (память) — лёгкий режим',
   'game.workerError': 'ошибка решателя',

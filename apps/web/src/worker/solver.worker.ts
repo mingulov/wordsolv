@@ -1,14 +1,15 @@
 /// <reference lib="webworker" />
 import {
-  buildPatternTable, defaultOptions, findContradictions, parseDictAsset, rateGuessRow, suggest,
+  buildPatternTable, defaultOptions, dictHashOf, findContradictions, parseDictAsset, parseMove0, rateGuessRow, suggest,
   suggestRepairs, unknownWords,
-  type Dictionary, type GuessRating, type PatternTable,
+  type Dictionary, type GuessRating, type OpeningBook, type PatternTable,
 } from '@wordsolv/solver-core'
 import type { SuggestRequest, WorkerReply } from './protocol'
 import { ratingRowKey } from './ratingKey'
 
 const dicts = new Map<string, Dictionary>()
 const tables = new Map<string, PatternTable | null>()
+const books = new Map<string, OpeningBook | null>()
 const ratingsCache = new Map<string, GuessRating | null>()
 let latest = 0
 const queue: SuggestRequest[] = []
@@ -48,6 +49,11 @@ async function handle(req: SuggestRequest): Promise<void> {
     dict = parseDictAsset(await res.text())
     dicts.set(key, dict)
   }
+  if (!books.has(key)) {
+    post({ id: req.id, type: 'progress', message: 'loading-book' })
+    books.set(key, await loadBook(req.m0Url, dict))
+  }
+  const book = books.get(key) ?? null
   const wantDeep = req.mode !== 'lite'
   if (wantDeep && !tables.has(key)) {
     post({ id: req.id, type: 'progress', message: 'building-table' })
@@ -55,7 +61,7 @@ async function handle(req: SuggestRequest): Promise<void> {
   }
   const table = wantDeep ? (tables.get(key) ?? null) : null
   const effectiveMode: 'deep' | 'lite' = table ? 'deep' : 'lite'
-  const result = suggest(req.state, dict, defaultOptions(effectiveMode), table)
+  const result = suggest(req.state, dict, defaultOptions(effectiveMode), table, book)
   const contradictions = result.boards.some((b) => b.candidatesLeft === 0 && b.solvedWord === null)
     ? findContradictions(req.state, dict)
     : []
@@ -70,7 +76,7 @@ async function handle(req: SuggestRequest): Promise<void> {
     if (ratingsCache.has(key)) {
       r = ratingsCache.get(key)!
     } else {
-      r = rateGuessRow(req.state, row, dict, defaultOptions(effectiveMode), table)
+      r = rateGuessRow(req.state, row, dict, defaultOptions(effectiveMode), table, book)
       if (ratingsCache.size >= 500) ratingsCache.clear() // crude bound; sessions never near it
       ratingsCache.set(key, r)
     }
@@ -88,4 +94,16 @@ async function handle(req: SuggestRequest): Promise<void> {
     ratings,
     repairs,
   })
+}
+
+/** Fetches and validates the move-0 book. Any failure degrades to the live path. */
+async function loadBook(m0Url: string, dict: Dictionary): Promise<OpeningBook | null> {
+  try {
+    const res = await fetch(m0Url)
+    if (!res.ok) return null
+    const move0 = parseMove0(await res.arrayBuffer(), dict)
+    return move0 ? { dictHash: dictHashOf(dict), move0, move1: null } : null
+  } catch {
+    return null
+  }
 }

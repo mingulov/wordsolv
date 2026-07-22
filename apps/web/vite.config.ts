@@ -29,7 +29,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}', 'dict/ru-5.txt', 'dict/en-5.txt', 'dict/SOURCES.md'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}', 'dict/ru-5.txt', 'dict/en-5.txt', 'dict/*.m0.bin', 'dict/SOURCES.md'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {

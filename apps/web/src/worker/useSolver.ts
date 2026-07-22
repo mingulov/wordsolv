@@ -9,7 +9,7 @@ export interface SolverHook {
   busy: boolean
   progress: string | null
   error: string | null
-  requestSuggest: (state: GameState, mode: SolveMode, dictUrl: string) => void
+  requestSuggest: (state: GameState, mode: SolveMode, dictUrl: string, m0Url: string, m1Url: string | null) => void
 }
 
 export function useSolver(): SolverHook {
@@ -69,9 +69,9 @@ export function useSolver(): SolverHook {
   useEffect(() => () => workerRef.current?.terminate(), [])
 
   const requestSuggest = useCallback(
-    (state: GameState, mode: SolveMode, dictUrl: string) => {
+    (state: GameState, mode: SolveMode, dictUrl: string, m0Url: string, m1Url: string | null) => {
       if (!workerRef.current) workerRef.current = spawn()
-      const req: SuggestRequest = { id: ++idRef.current, type: 'suggest', state, mode, dictUrl }
+      const req: SuggestRequest = { id: ++idRef.current, type: 'suggest', state, mode, dictUrl, m0Url, m1Url }
       lastReq.current = req
       if (busyTimer.current) clearTimeout(busyTimer.current)
       busyTimer.current = setTimeout(() => setBusy(true), BUSY_DELAY_MS)
