@@ -40,7 +40,19 @@ export default defineConfig({
           {
             urlPattern: /\/dict\/[a-z]{2}-\d\.m1\.bin\.gz$/,
             handler: 'CacheFirst',
-            options: { cacheName: 'move1-books', expiration: { maxEntries: 6 } },
+            options: {
+              cacheName: 'move1-books',
+              // `cleanupOutdatedCaches` only prunes the revisioned precache, not
+              // this named runtime cache, and CacheFirst never revalidates on
+              // its own. `parseMove1`'s dictHash check already rejects a stale
+              // book after a dictionary change, so this only bounds the rarer
+              // case of a book regenerated without a dictionary change (e.g. a
+              // scoring-constant tweak or opener regeneration per CLAUDE.md).
+              // 30 days keeps that window small while avoiding frequent
+              // re-fetches of these large assets (en-6 is 5.52 MB) on GitHub
+              // Pages bandwidth.
+              expiration: { maxEntries: 6, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
           },
         ],
       },

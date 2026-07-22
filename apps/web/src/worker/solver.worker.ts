@@ -2,7 +2,7 @@
 import {
   buildPatternTable, defaultOptions, dictHashOf, findContradictions, parseDictAsset, parseMove0, parseMove1, rateGuessRow,
   suggest, suggestRepairs, unknownWords,
-  type Dictionary, type GuessRating, type OpeningBook, type PatternTable,
+  type Dictionary, type GuessRating, type Move1Book, type OpeningBook, type PatternTable,
 } from '@wordsolv/solver-core'
 import type { SuggestRequest, WorkerReply } from './protocol'
 import { ratingRowKey } from './ratingKey'
@@ -110,7 +110,7 @@ async function loadBook(m0Url: string, m1Url: string | null, dict: Dictionary): 
   }
   if (!move0) return null
 
-  let move1 = null
+  let move1: Move1Book | null = null
   if (m1Url && typeof DecompressionStream !== 'undefined') {
     try {
       const res = await fetch(m1Url)

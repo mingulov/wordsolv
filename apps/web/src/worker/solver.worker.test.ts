@@ -1,5 +1,6 @@
+import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { newGame, parseDictAsset, scoreGuess, serializeMove0, type GameState } from '@wordsolv/solver-core'
+import { newGame, parseDictAsset, scoreGuess, serializeMove0, serializeMove1, type GameState } from '@wordsolv/solver-core'
 import type { SuggestRequest, WorkerReply } from './protocol'
 
 // Spies on the two solver-core entry points the worker is supposed to thread
@@ -211,6 +212,82 @@ it('keeps the move-0 book but leaves move1 null when the move-1 fetch 404s', asy
   expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
   const rateBook = rateGuessRowSpy.mock.calls[0][5] // rateGuessRow(state, row, dict, opts, table, book)
   expect(rateBook).toEqual(expect.objectContaining({ move0: expect.any(Float64Array), move1: null }))
+})
+
+// Real success path: a real gzip payload built with the real serializeMove1,
+// decompressed by the worker's actual `DecompressionStream('gzip')` and parsed
+// by the real `parseMove1` — no part of the move-1 pipeline is mocked here.
+// jsdom (this project's vitest environment) does not define its own
+// `DecompressionStream`/`Response`/`ReadableStream`, so Node's real
+// implementations are the ones the worker calls; Node's `gzipSync` produces
+// standard gzip, which is exactly what `DecompressionStream('gzip')` expects.
+// Own cache key (ru-5, the primary target config's word length) so this
+// doesn't collide with any other test's module-scoped dict/table/book cache.
+
+const DICT_TEXT_M1_OK = '#wordsolv-dict v1 ru 5 3\nааааб\nааааг\nаааад\nяяяяя\n'
+const dictM1Ok = parseDictAsset(DICT_TEXT_M1_OK)
+const openerM1Ok = dictM1Ok.words[0] // 'ааааб'
+const openerIdxM1Ok = dictM1Ok.index.get(openerM1Ok)!
+const m0BufferM1Ok = serializeMove0(dictM1Ok, new Float64Array([0.1, 0.2, 0.3, 0.4]))
+
+// Two distinct patterns arise from playing the opener against its own T1:
+// itself (all green) and either other T1 word (green x4 + gray on the last
+// letter — same numeric pattern for both, since they only differ from the
+// opener in that one position). De-duped so `rowOf` has exactly two rows.
+const patternsM1Ok = Array.from(new Set(dictM1Ok.words.slice(0, dictM1Ok.t1Count).map((w) => scoreGuess(openerM1Ok, w))))
+const nM1Ok = dictM1Ok.words.length
+const valuesM1Ok = Float32Array.from({ length: patternsM1Ok.length * nM1Ok }, (_, i) => i + 0.5)
+const m1BufferOk = serializeMove1(dictM1Ok, openerIdxM1Ok, patternsM1Ok, valuesM1Ok)
+const m1GzippedOk = gzipSync(new Uint8Array(m1BufferOk))
+
+const stateM1Ok: GameState = {
+  ...newGame('ru', 5, 1),
+  guesses: [openerM1Ok],
+  boards: [{ feedback: [scoreGuess(openerM1Ok, dictM1Ok.words[1])] }],
+}
+
+it('decompresses and parses a real gzipped move-1 book on a successful fetch', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/m1-ok.txt') return { ok: true, text: async () => DICT_TEXT_M1_OK } as unknown as Response
+      if (url === '/dict/m1-ok.m0.bin') return { ok: true, arrayBuffer: async () => m0BufferM1Ok } as unknown as Response
+      // A real Response over real gzip bytes: `res.body` must be a genuine
+      // ReadableStream for `pipeThrough(new DecompressionStream('gzip'))` to
+      // do real decompression, so this one is NOT the usual object-literal stub.
+      if (url === '/dict/m1-ok.m1.bin.gz') return new Response(m1GzippedOk)
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 260,
+    type: 'suggest',
+    state: stateM1Ok,
+    mode: 'lite',
+    dictUrl: '/dict/m1-ok.txt',
+    m0Url: '/dict/m1-ok.m0.bin',
+    m1Url: '/dict/m1-ok.m1.bin.gz',
+  }
+  const reply = await send(req)
+
+  expect(reply.type).toBe('result')
+
+  expect(suggestSpy).toHaveBeenCalledTimes(1)
+  const suggestBook = suggestSpy.mock.calls[0][4] // suggest(state, dict, opts, table, book)
+  expect(suggestBook.move0).toEqual(expect.any(Float64Array))
+  expect(suggestBook.move1).not.toBeNull()
+  expect(suggestBook.move1.openerIdx).toBe(openerIdxM1Ok)
+  expect(suggestBook.move1.n).toBe(nM1Ok)
+  expect(new Set(suggestBook.move1.rowOf.keys())).toEqual(new Set(patternsM1Ok))
+  patternsM1Ok.forEach((p, row) => expect(suggestBook.move1.rowOf.get(p)).toBe(row))
+  expect(Array.from(suggestBook.move1.values as Float32Array)).toEqual(Array.from(valuesM1Ok))
+
+  expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
+  const rateBook = rateGuessRowSpy.mock.calls[0][5] // rateGuessRow(state, row, dict, opts, table, book)
+  expect(rateBook.move1).not.toBeNull()
+  expect(rateBook.move1.openerIdx).toBe(openerIdxM1Ok)
+  expect(Array.from(rateBook.move1.values as Float32Array)).toEqual(Array.from(valuesM1Ok))
 })
 
 // --- mode resolution: 'auto' must NOT pay the pattern-table cost ---------
