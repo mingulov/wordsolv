@@ -1,3 +1,4 @@
+import { bookLookup, type OpeningBook } from './book'
 import type { Dictionary } from './dictionary'
 import { boardCandidatesOf, scoreAllWords, scoreWordAgainst } from './entropy'
 import openersJson from './openers.json' with { type: 'json' }
@@ -36,9 +37,10 @@ export function rateGuessRow(
   dict: Dictionary,
   opts: SolverOptions,
   table: PatternTable | null = null,
+  book: OpeningBook | null = null,
 ): GuessRating | null {
   const prefix = prefixOf(state, row)
-  const { scored, boards } = scoreAllWords(prefix, dict, table)
+  const { scored, boards } = scoreAllWords(prefix, dict, table, book)
   if (boards.some((bc) => bc.solvedWord === null && bc.candidates.length === 0)) return null
 
   const unsolved = boards
@@ -46,7 +48,8 @@ export function rateGuessRow(
     .filter(({ bc }) => bc.solvedWord === null && bc.candidates.length > 0)
   const guessesLeft = prefix.maxGuesses - prefix.guesses.length
   const word = state.guesses[row]
-  const mine = scoreWordAgainst(word, dict.index.get(word), unsolved, guessesLeft, table)
+  const hLookup = bookLookup(prefix, dict, book, unsolved)
+  const mine = scoreWordAgainst(word, dict.index.get(word), unsolved, guessesLeft, table, hLookup)
 
   const seq = opts.disableOpeners ? undefined : openers[openerKey(state)]
   const openerNext =
@@ -74,10 +77,11 @@ export function rateGuesses(
   dict: Dictionary,
   opts: SolverOptions,
   table: PatternTable | null = null,
+  book: OpeningBook | null = null,
 ): GuessRating[] {
   const out: GuessRating[] = []
   for (let row = 0; row < state.guesses.length; row++) {
-    const r = rateGuessRow(state, row, dict, opts, table)
+    const r = rateGuessRow(state, row, dict, opts, table, book)
     if (r === null) break
     out.push(r)
   }

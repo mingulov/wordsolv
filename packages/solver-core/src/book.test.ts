@@ -7,7 +7,9 @@ import {
 } from './book'
 import { makeDictionary, parseDictAsset, type Dictionary } from './dictionary'
 import { boardCandidatesOf, scoreAllWords, type BoardCandidates } from './entropy'
-import { newGame, type GameState } from './types'
+import { scoreGuess } from './pattern'
+import { rateGuessRow } from './rate'
+import { defaultOptions, newGame, type GameState } from './types'
 
 const d = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
 
@@ -147,5 +149,30 @@ describe('move-0 book equivalence', () => {
     expect(bookLookup(state, dict, bad, unsolvedOf(state, dict))).toBeNull()
     const withBad = scoreAllWords(state, dict, null, bad).scored
     for (let i = 0; i < live.length; i++) expect(withBad[i].score).toBe(live[i].score)
+  })
+})
+
+describe('rating consistency with the book', () => {
+  it('draws the played score and the best score from the same source', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    const played = dict.words[3]
+    const answers = [11, 29, 47, 83].map((i) => dict.words[i % dict.t1Count])
+    state.guesses = [played]
+    state.boards = answers.map((a) => ({ feedback: [scoreGuess(played, a)] }))
+
+    // Prove the book actually engages for the position being rated (row 0's prefix, i.e.
+    // zero guesses played) — otherwise this equivalence would hold trivially even with
+    // `bookLookup` stubbed to always return null, since book values are bit-identical to
+    // live ones by construction (see 'move-0 book equivalence' above).
+    const prefix = newGame('ru', 4, 4)
+    expect(bookLookup(prefix, dict, book, unsolvedOf(prefix, dict))).not.toBeNull()
+
+    const live = rateGuessRow(state, 0, dict, defaultOptions('lite'), null, null)
+    const withBook = rateGuessRow(state, 0, dict, defaultOptions('lite'), null, book)
+    expect(withBook).not.toBeNull()
+    expect(withBook!.score).toBe(live!.score)
+    expect(withBook!.bestWord).toBe(live!.bestWord)
+    expect(withBook!.bestScore).toBe(live!.bestScore)
   })
 })
