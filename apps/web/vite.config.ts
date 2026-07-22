@@ -37,6 +37,11 @@ export default defineConfig({
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'dict-assets' },
           },
+          {
+            urlPattern: /\/dict\/[a-z]{2}-\d\.m1\.bin\.gz$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'move1-books', expiration: { maxEntries: 6 } },
+          },
         ],
       },
     }),

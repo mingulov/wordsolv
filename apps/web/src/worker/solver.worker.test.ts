@@ -171,6 +171,48 @@ it('degrades to a null book with a normal result reply (no error) when the move-
   expect(rateGuessRowSpy.mock.calls[0][5]).toBeNull()
 })
 
+const DICT_TEXT_M1_404 = '#wordsolv-dict v1 ru 4 3\nаааб\nааав\nаааг\nяяяя\n'
+const dictM1_404 = parseDictAsset(DICT_TEXT_M1_404)
+const m0BufferM1_404 = serializeMove0(dictM1_404, new Float64Array([0.1, 0.2, 0.3, 0.4]))
+const stateM1_404: GameState = {
+  ...newGame('ru', 4, 1),
+  guesses: ['аааб'],
+  boards: [{ feedback: [scoreGuess('аааб', 'аааг')] }],
+}
+
+it('keeps the move-0 book but leaves move1 null when the move-1 fetch 404s', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/m1-404.txt') return { ok: true, text: async () => DICT_TEXT_M1_404 } as unknown as Response
+      if (url === '/dict/m1-404.m0.bin') return { ok: true, arrayBuffer: async () => m0BufferM1_404 } as unknown as Response
+      if (url === '/dict/m1-404.m1.bin.gz') return { ok: false, status: 404 } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 250,
+    type: 'suggest',
+    state: stateM1_404,
+    mode: 'lite',
+    dictUrl: '/dict/m1-404.txt',
+    m0Url: '/dict/m1-404.m0.bin',
+    m1Url: '/dict/m1-404.m1.bin.gz',
+  }
+  const reply = await send(req)
+
+  expect(reply.type).toBe('result') // silent degradation: no error reply for a missing move-1 book
+
+  expect(suggestSpy).toHaveBeenCalledTimes(1)
+  const suggestBook = suggestSpy.mock.calls[0][4] // suggest(state, dict, opts, table, book)
+  expect(suggestBook).toEqual(expect.objectContaining({ move0: expect.any(Float64Array), move1: null }))
+
+  expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
+  const rateBook = rateGuessRowSpy.mock.calls[0][5] // rateGuessRow(state, row, dict, opts, table, book)
+  expect(rateBook).toEqual(expect.objectContaining({ move0: expect.any(Float64Array), move1: null }))
+})
+
 // --- mode resolution: 'auto' must NOT pay the pattern-table cost ---------
 //
 // These three pin `wantDeep` in solver.worker.ts in all three directions.

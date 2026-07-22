@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import {
-  buildPatternTable, defaultOptions, dictHashOf, findContradictions, parseDictAsset, parseMove0, rateGuessRow, suggest,
-  suggestRepairs, unknownWords,
+  buildPatternTable, defaultOptions, dictHashOf, findContradictions, parseDictAsset, parseMove0, parseMove1, rateGuessRow,
+  suggest, suggestRepairs, unknownWords,
   type Dictionary, type GuessRating, type OpeningBook, type PatternTable,
 } from '@wordsolv/solver-core'
 import type { SuggestRequest, WorkerReply } from './protocol'
@@ -51,7 +51,7 @@ async function handle(req: SuggestRequest): Promise<void> {
   }
   if (!books.has(key)) {
     post({ id: req.id, type: 'progress', message: 'loading-book' })
-    books.set(key, await loadBook(req.m0Url, dict))
+    books.set(key, await loadBook(req.m0Url, req.m1Url, dict))
   }
   const book = books.get(key) ?? null
   const wantDeep = req.mode === 'deep'
@@ -96,14 +96,31 @@ async function handle(req: SuggestRequest): Promise<void> {
   })
 }
 
-/** Fetches and validates the move-0 book. Any failure degrades to the live path. */
-async function loadBook(m0Url: string, dict: Dictionary): Promise<OpeningBook | null> {
+/**
+ * Fetches the move-0 book and, when this config has one, the gzipped move-1 book.
+ * Any failure — 404, stale dictHash, no DecompressionStream — degrades to the live path.
+ */
+async function loadBook(m0Url: string, m1Url: string | null, dict: Dictionary): Promise<OpeningBook | null> {
+  let move0: Float64Array | null = null
   try {
     const res = await fetch(m0Url)
-    if (!res.ok) return null
-    const move0 = parseMove0(await res.arrayBuffer(), dict)
-    return move0 ? { dictHash: dictHashOf(dict), move0, move1: null } : null
+    if (res.ok) move0 = parseMove0(await res.arrayBuffer(), dict)
   } catch {
-    return null
+    move0 = null
   }
+  if (!move0) return null
+
+  let move1 = null
+  if (m1Url && typeof DecompressionStream !== 'undefined') {
+    try {
+      const res = await fetch(m1Url)
+      if (res.ok && res.body) {
+        const stream = res.body.pipeThrough(new DecompressionStream('gzip'))
+        move1 = parseMove1(await new Response(stream).arrayBuffer(), dict)
+      }
+    } catch {
+      move1 = null
+    }
+  }
+  return { dictHash: dictHashOf(dict), move0, move1 }
 }
