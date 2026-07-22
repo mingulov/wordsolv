@@ -1,5 +1,7 @@
 import type { Dictionary } from './dictionary'
+import type { BoardCandidates, EntropyLookup } from './entropy'
 import { djb2 } from './random'
+import type { GameState } from './types'
 
 /** Word lengths that get a move-1 book. Longer configs are entropy-cheap at move 1. */
 export const MOVE1_MAX_LEN = 6
@@ -105,4 +107,39 @@ export function parseMove1(buf: ArrayBuffer, dict: Dictionary): Move1Book | null
   const rowOf = new Map<number, number>()
   for (let i = 0; i < patternCount; i++) rowOf.set(view.getUint16(M1_HEADER + i * 2, true), i)
   return { openerIdx, rowOf, values: new Float32Array(buf, off, patternCount * n), n }
+}
+
+/**
+ * An entropy lookup for the current position, or null when no book applies and the
+ * caller must fall back to live scoring.
+ *
+ * move-0 applies on an empty board. move-1 applies when exactly the book's opener has
+ * been played and every unsolved board's pattern is present in the book. A pattern with
+ * no T1 survivors is absent by construction, so the states where `boardView` widens to
+ * T2 fall back automatically.
+ */
+export function bookLookup(
+  state: GameState,
+  dict: Dictionary,
+  book: OpeningBook | null,
+  unsolved: { bc: BoardCandidates; b: number }[],
+): EntropyLookup | null {
+  if (!book || book.dictHash !== dictHashOf(dict)) return null
+
+  if (state.guesses.length === 0) {
+    const m0 = book.move0
+    return (wordIdx) => m0[wordIdx]
+  }
+
+  const m1 = book.move1
+  if (!m1 || state.guesses.length !== 1) return null
+  if (dict.index.get(state.guesses[0]) !== m1.openerIdx) return null
+  const rows = new Int32Array(unsolved.length)
+  for (let slot = 0; slot < unsolved.length; slot++) {
+    const row = m1.rowOf.get(state.boards[unsolved[slot].b].feedback[0])
+    if (row === undefined) return null
+    rows[slot] = row
+  }
+  const { values, n } = m1
+  return (wordIdx, slot) => values[rows[slot] * n + wordIdx]
 }

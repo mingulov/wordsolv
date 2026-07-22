@@ -12,14 +12,14 @@ export {
 } from './types'
 export {
   SOLVE_BONUS, URGENCY_WEIGHT, boardCandidatesOf, entropyOf, entropyOfIdx, scoreAllWords, scoreWordAgainst, suggestEntropy, weightsFor,
-  type BoardCandidates, type ScoredWord,
+  type BoardCandidates, type EntropyLookup, type ScoredWord,
 } from './entropy'
 export { rateGuessRow, rateGuesses, type GuessRating } from './rate'
 export { suggestRepairs, type TileRepair } from './repair'
 export { endgameSearch, type EndgameResult } from './endgame'
 export { buildPatternTable, DEFAULT_TABLE_BYTES, type PatternTable } from './patternTable'
 export {
-  BOOK_VERSION, MOVE1_MAX_LEN, dictHashOf, parseMove0, parseMove1, serializeMove0, serializeMove1,
+  BOOK_VERSION, MOVE1_MAX_LEN, bookLookup, dictHashOf, parseMove0, parseMove1, serializeMove0, serializeMove1,
   type Move1Book, type OpeningBook,
 } from './book'
 export { mulberry32, pickDistinct } from './random'

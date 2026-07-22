@@ -1,3 +1,4 @@
+import { bookLookup, type OpeningBook } from './book'
 import { answerWeight, boardView, type Dictionary } from './dictionary'
 import { scoreGuess } from './pattern'
 import type { PatternTable } from './patternTable'
@@ -93,6 +94,12 @@ export function boardCandidatesOf(state: GameState, dict: Dictionary): BoardCand
 
 export interface ScoredWord { word: string; idx: number; score: number; isCandidateFor: number[] }
 
+/**
+ * Supplies `h` for one (word, board-slot) pair in place of a live `entropyOf` call.
+ * `slot` indexes the `unsolved` array, not `state.boards`.
+ */
+export type EntropyLookup = (wordIdx: number, slot: number) => number
+
 /** Score of one word against a set of unsolved boards (urgency × entropy + solve bonus). */
 export function scoreWordAgainst(
   word: string,
@@ -100,14 +107,18 @@ export function scoreWordAgainst(
   unsolved: { bc: BoardCandidates; b: number }[],
   guessesLeft: number,
   table: PatternTable | null,
+  hLookup: EntropyLookup | null = null,
 ): { score: number; isCandidateFor: number[] } {
   let score = 0
   const isCandidateFor: number[] = []
-  for (const { bc, b } of unsolved) {
+  for (let slot = 0; slot < unsolved.length; slot++) {
+    const { bc, b } = unsolved[slot]
     const urgency = 1 + (URGENCY_WEIGHT * Math.log2(bc.candidates.length + 1)) / Math.max(1, guessesLeft)
-    const h = table && wordIdx !== undefined
-      ? entropyOfIdx(wordIdx, bc.candIdx, bc.weights, table)
-      : entropyOf(word, bc.candidates, bc.weights)
+    const h = hLookup && wordIdx !== undefined
+      ? hLookup(wordIdx, slot)
+      : table && wordIdx !== undefined
+        ? entropyOfIdx(wordIdx, bc.candIdx, bc.weights, table)
+        : entropyOf(word, bc.candidates, bc.weights)
     score += urgency * h
     const ci = bc.candidates.indexOf(word)
     if (ci !== -1) {
@@ -125,16 +136,18 @@ export function scoreAllWords(
   state: GameState,
   dict: Dictionary,
   table?: PatternTable | null,
+  book?: OpeningBook | null,
 ): { scored: ScoredWord[]; boards: BoardCandidates[] } {
   const boards = boardCandidatesOf(state, dict)
   const guessesLeft = state.maxGuesses - state.guesses.length
   const unsolved = boards
     .map((bc, b) => ({ bc, b }))
     .filter(({ bc }) => bc.solvedWord === null && bc.candidates.length > 0)
+  const hLookup = bookLookup(state, dict, book ?? null, unsolved)
   const scored: ScoredWord[] = []
   for (let idx = 0; idx < dict.words.length; idx++) {
     const g = dict.words[idx]
-    const { score, isCandidateFor } = scoreWordAgainst(g, idx, unsolved, guessesLeft, table ?? null)
+    const { score, isCandidateFor } = scoreWordAgainst(g, idx, unsolved, guessesLeft, table ?? null, hLookup)
     scored.push({ word: g, idx, score, isCandidateFor })
   }
   scored.sort((a, b) => b.score - a.score || a.idx - b.idx)
@@ -147,8 +160,9 @@ export function suggestEntropy(
   opts: SolverOptions,
   table?: PatternTable | null,
   seedText = '',
+  book?: OpeningBook | null,
 ): Suggestion[] {
-  const { scored, boards } = scoreAllWords(state, dict, table)
+  const { scored, boards } = scoreAllWords(state, dict, table, book)
   const unsolved = boards
     .map((bc, b) => ({ bc, b }))
     .filter(({ bc }) => bc.solvedWord === null && bc.candidates.length > 0)

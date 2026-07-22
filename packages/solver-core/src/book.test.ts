@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   dictHashOf, parseMove0, parseMove1, serializeMove0, serializeMove1,
+  type OpeningBook,
 } from './book'
-import { makeDictionary } from './dictionary'
+import { makeDictionary, parseDictAsset } from './dictionary'
+import { scoreAllWords } from './entropy'
+import { newGame } from './types'
 
 const d = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
 
@@ -65,5 +70,58 @@ describe('dictHashOf', () => {
   it('is stable for the same word list', () => {
     const same = makeDictionary('en', 3, ['bat', 'cat', 'hat'], ['bch'])
     expect(dictHashOf(d)).toBe(dictHashOf(same))
+  })
+})
+
+function loadBook(cfg: string): { dict: ReturnType<typeof parseDictAsset>; book: OpeningBook } {
+  const assets = join(import.meta.dirname, '..', 'dict', 'assets')
+  const dict = parseDictAsset(readFileSync(join(assets, `${cfg}.txt`), 'utf8'))
+  const raw = readFileSync(join(assets, `${cfg}.m0.bin`))
+  const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer
+  const move0 = parseMove0(buf, dict)
+  if (!move0) throw new Error(`move-0 book failed to parse for ${cfg}`)
+  return { dict, book: { dictHash: dictHashOf(dict), move0, move1: null } }
+}
+
+describe('move-0 book equivalence', () => {
+  // ru-4 is the only config whose live move-0 scan (~2 s) belongs in the fast suite.
+  it('reproduces live scores bit-for-bit and preserves the full ranking', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    expect(withBook.length).toBe(live.length)
+    for (let i = 0; i < live.length; i++) {
+      expect(withBook[i].word).toBe(live[i].word)
+      expect(withBook[i].score).toBe(live[i].score) // strict equality, not toBeCloseTo
+      expect(withBook[i].isCandidateFor).toEqual(live[i].isCandidateFor)
+    }
+  })
+
+  it('holds for a non-default board count and guess limit', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 2, 11)
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    for (let i = 0; i < live.length; i++) expect(withBook[i].score).toBe(live[i].score)
+  })
+
+  it('falls back to the live path once a guess has been played', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    state.guesses = [dict.words[0]]
+    state.boards = state.boards.map(() => ({ feedback: [0] }))
+    const live = scoreAllWords(state, dict, null).scored
+    const withBook = scoreAllWords(state, dict, null, book).scored
+    for (let i = 0; i < live.length; i++) expect(withBook[i].score).toBe(live[i].score)
+  })
+
+  it('ignores a book whose dictHash does not match', () => {
+    const { dict, book } = loadBook('ru-4')
+    const state = newGame('ru', 4, 4)
+    const bad: OpeningBook = { ...book, dictHash: book.dictHash ^ 1 }
+    const live = scoreAllWords(state, dict, null).scored
+    const withBad = scoreAllWords(state, dict, null, bad).scored
+    for (let i = 0; i < live.length; i++) expect(withBad[i].score).toBe(live[i].score)
   })
 })
