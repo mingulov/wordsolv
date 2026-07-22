@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { makeDictionary } from './dictionary'
+import { makeDictionary, parseDictAsset } from './dictionary'
 import { endgameSearch } from './endgame'
 import { scoreGuess } from './pattern'
 import { suggest } from './solver'
@@ -35,6 +37,66 @@ describe('endgameSearch', () => {
     const r = endgameSearch([['bat'], ['cat']], 2, d, opts)
     expect(r!.winProb).toBeCloseTo(1, 10)
     expect(r!.expGuesses).toBeCloseTo(2, 10)
+  })
+})
+
+describe('node budget', () => {
+  const dict = parseDictAsset(
+    readFileSync(join(import.meta.dirname, '..', 'dict', 'assets', 'ru-5.txt'), 'utf8'),
+  )
+  // 3 boards x 5 candidates with 6 guesses left: far more than a few hundred search
+  // nodes, yet small enough that the search runs to completion in a fraction of a
+  // second. The control test below proves that, so a null under a tiny budget can
+  // only be the budget aborting a search that would otherwise have succeeded.
+  const boards = [dict.words.slice(0, 5), dict.words.slice(40, 45), dict.words.slice(80, 85)]
+
+  it('control: this position completes when the budget is generous', () => {
+    const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 50_000_000 }
+    const r = endgameSearch(boards, 6, dict, opts)
+    expect(r).not.toBeNull()
+    expect(r!.word).not.toBe('')
+    expect(r!.winProb).toBeGreaterThan(0)
+  })
+
+  it('aborts deterministically when the budget is exhausted', () => {
+    // A generous wall clock, so only the node budget can end the search.
+    const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 500 }
+    const a = endgameSearch(boards, 6, dict, opts)
+    const b = endgameSearch(boards, 6, dict, opts)
+    expect(a).toBeNull()
+    expect(b).toBeNull()
+  })
+
+  it('returns quickly rather than running to the wall clock', () => {
+    const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 500 }
+    const t0 = performance.now()
+    endgameSearch(boards, 6, dict, opts)
+    expect(performance.now() - t0).toBeLessThan(2_000)
+  })
+
+  it('still solves a small position under a generous budget', () => {
+    const opts = { ...defaultOptions('lite'), endgameNodeBudget: 5_000_000 }
+    const small = [['крыша', 'крыло'], ['мираж']]
+      .map((ws) => ws.filter((w) => dict.index.has(w)))
+      .filter((ws) => ws.length > 0)
+    expect(small.flat()).toHaveLength(3) // guard: the words must really be in ru-5
+    const r = endgameSearch(small, 5, dict, opts)
+    expect(r).not.toBeNull()
+    expect(r!.winProb).toBeGreaterThan(0)
+  })
+
+  it('a budget that does not bind leaves the chosen guess unchanged', () => {
+    const huge = endgameSearch(boards, 6, dict, {
+      ...defaultOptions('lite'),
+      timeBudgetMs: 600_000,
+      endgameNodeBudget: Number.MAX_SAFE_INTEGER,
+    })
+    const dflt = endgameSearch(boards, 6, dict, {
+      ...defaultOptions('lite'),
+      timeBudgetMs: 600_000,
+      endgameNodeBudget: 50_000_000,
+    })
+    expect(dflt).toEqual(huge)
   })
 })
 

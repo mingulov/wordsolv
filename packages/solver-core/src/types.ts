@@ -43,6 +43,11 @@ export interface SolverOptions {
   twoPlySamples: number
   timeBudgetMs: number
   /**
+   * Deterministic cap on endgame search nodes. Counted at the cartesian-product leaf,
+   * where the work actually happens — a per-guess counter bounds nothing.
+   */
+  endgameNodeBudget: number
+  /**
    * Skip the fixed-opener phase; used by offline tooling to evaluate play
    * without openers.json influence.
    */
@@ -51,8 +56,8 @@ export interface SolverOptions {
 
 export function defaultOptions(mode: 'lite' | 'deep'): SolverOptions {
   return mode === 'deep'
-    ? { mode, topN: 10, endgameJointLimit: 2_000_000, twoPly: true, twoPlyK: 16, twoPlySamples: 48, timeBudgetMs: 1500 }
-    : { mode, topN: 10, endgameJointLimit: 100_000, twoPly: false, twoPlyK: 0, twoPlySamples: 0, timeBudgetMs: 1500 }
+    ? { mode, topN: 10, endgameJointLimit: 2_000_000, twoPly: true, twoPlyK: 16, twoPlySamples: 48, timeBudgetMs: 1500, endgameNodeBudget: 3_000_000 }
+    : { mode, topN: 10, endgameJointLimit: 100_000, twoPly: false, twoPlyK: 0, twoPlySamples: 0, timeBudgetMs: 1500, endgameNodeBudget: 3_000_000 }
 }
 
 export function defaultMaxGuesses(boardCount: number): number {

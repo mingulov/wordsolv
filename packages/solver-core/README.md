@@ -65,9 +65,13 @@ first:
 2. **Endgame** (`source: 'endgame'`) — once the joint candidate space
    across all unsolved boards is small enough (`opts.endgameJointLimit`),
    `endgameSearch` runs an exact expected-value search (memoized, with a
-   `opts.timeBudgetMs` deadline) over a guess pool built from the remaining
-   candidates plus top entropy probes, maximizing win probability first and
-   expected remaining guesses second.
+   `opts.endgameNodeBudget` node cap and an `opts.timeBudgetMs` deadline)
+   over a guess pool built from the remaining candidates plus top entropy
+   probes, maximizing win probability first and expected remaining guesses
+   second. The node cap is the deterministic bound and is counted at the
+   leaves of the cartesian walk over per-board outcomes; the wall clock is
+   only a secondary safety net. If either bound trips, the search returns
+   `null` and `suggest` falls through to entropy.
 3. **Entropy** (`source: 'entropy'`) — otherwise, `suggestEntropy` scores
    every dictionary word by weighted Shannon entropy of its feedback
    pattern distribution across all unsolved boards (frequency-weighted via
@@ -87,6 +91,7 @@ first:
 | `endgameJointLimit` | 100,000 | 2,000,000 |
 | `twoPly` | off | on (`twoPlyK: 16`, `twoPlySamples: 48`) |
 | `timeBudgetMs` | 1500 | 1500 |
+| `endgameNodeBudget` | 3,000,000 | 3,000,000 |
 
 Deep mode requires a `PatternTable` (`buildPatternTable(dict)`) to be
 passed into `suggest`/`suggestEntropy` — without a table, entropy scoring

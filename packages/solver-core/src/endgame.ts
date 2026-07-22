@@ -43,7 +43,16 @@ export function endgameSearch(
     .map((x) => x.w)
   const pool = [...new Set([...candidateUnion, ...probes])]
 
+  /**
+   * Deterministic work counter. Ticked once per pool word considered *and* once per
+   * leaf of the cartesian walk (see `walk`), because the leaves are where the search
+   * actually spends itself: a single pool word can expand into arbitrarily many of
+   * them, and leaves served by the memo or by a base case in `value` do no other
+   * accounting. The wall clock stays as a secondary, machine-dependent safety net.
+   */
+  let nodes = 0
   function tick(): void {
+    if (++nodes > opts.endgameNodeBudget) throw new Timeout()
     if ((clock++ & CLOCK_MASK) === 0 && performance.now() > deadline) throw new Timeout()
   }
 
@@ -79,6 +88,7 @@ export function endgameSearch(
       let eg = 0
       const walk = (bi: number, prob: number, next: string[][]): void => {
         if (bi === parts.length) {
+          tick()
           const sub = value(next, left - 1)
           p += prob * sub.p
           eg += prob * (1 + sub.eg)
