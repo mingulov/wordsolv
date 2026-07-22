@@ -71,11 +71,15 @@ describe('node budget', () => {
     const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 500 }
     const t0 = performance.now()
     endgameSearch(boards, 6, dict, opts)
-    expect(performance.now() - t0).toBeLessThan(2_000)
+    // The control test above completes this exact position in ~212ms. Aborting under
+    // this tiny budget measures 25-48ms. 150 sits between the two with headroom in
+    // both directions, so only an actual abort (not a completed search) can pass this -
+    // do not relax this back toward 2_000 or larger, that would make the test vacuous.
+    expect(performance.now() - t0).toBeLessThan(150)
   })
 
   it('still solves a small position under a generous budget', () => {
-    const opts = { ...defaultOptions('lite'), endgameNodeBudget: 5_000_000 }
+    const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 5_000_000 }
     const small = [['крыша', 'крыло'], ['мираж']]
       .map((ws) => ws.filter((w) => dict.index.has(w)))
       .filter((ws) => ws.length > 0)
@@ -97,6 +101,9 @@ describe('node budget', () => {
       endgameNodeBudget: 50_000_000,
     })
     expect(dflt).toEqual(huge)
+    // Load-bearing: pin the concrete answer so a real semantic regression in the
+    // search is caught, not just self-agreement between two non-binding budgets.
+    expect(dflt!.word).toBe('через')
   })
 })
 
