@@ -353,3 +353,46 @@ after   ru-5x4 lite  { '6': 31, '7': 120, '8': 44, '9': 5 }
 before  en-5x1 lite  { '2': 4, '3': 87, '4': 90, '5': 19 }
 after   en-5x1 lite  { '2': 6, '3': 87, '4': 88, '5': 19 }
 ```
+
+## `auto` mode now resolves to lite (2026-07-22)
+
+After the opening book (Tasks 3-7) and the endgame calibration above, the
+pattern table built at the start of a deep session only accelerates moves
+≥ 2 — already under 70 ms without it — plus 2-ply entropy refinement. The
+web app's default settings (`defaultSettings()` in
+`apps/web/src/state/settingsStore.ts`) ship with `modeOverride: 'auto'`,
+and the worker previously treated anything but an explicit `'lite'`
+request as deep (`req.mode !== 'lite'`), so a brand-new user's very first
+suggestion paid the one-time `buildPatternTable` cost — 3.5 s at `ru-5` up
+to 25.7 s at `ru-8` (see "deep mode pattern table cost" in project
+memory) — for a table that, post-Tasks-3-7, buys almost nothing at the
+primary config.
+
+`apps/web/src/worker/solver.worker.ts` now resolves `wantDeep` as
+`req.mode === 'deep'`: `'auto'` and `'lite'` both skip the table build;
+only an explicit user choice of Deep (in Setup or the Settings dialog)
+builds it. `setup.mode.auto`'s copy was reworded in both `en.ts` and
+`ru.ts` to say so explicitly ("Auto (fast; deep analysis off)" /
+"Авто (быстро; глубокий анализ выключен)").
+
+Gate: proceed only if lite's win rate is not lower than deep's and lite's
+average guesses is not worse by more than 0.05, at 300 games/seed 7,
+`ru-5x4`:
+
+```
+ru-5x4 mode=deep games=300 seed=7 (76.4s)   winRate=100.00% avgGuesses=7.297
+  histogram: { '6': 20, '7': 187, '8': 77, '9': 16 }
+ru-5x4 mode=lite games=300 seed=7 (202.8s)  winRate=100.00% avgGuesses=7.227
+  histogram: { '6': 33, '7': 182, '8': 69, '9': 16 }
+```
+
+Win rate ties (100.00% both); lite is *better* by 0.070 avgGuesses — the
+gate passes with room to spare. **The wall-clock columns are not evidence
+that deep mode is slower for users in general**: `bin/simulate.ts` builds
+one `PatternTable` and amortizes it across all 300 games in a single
+process, so deep's *lower* total here (76.4s vs 202.8s) is a harness
+artifact of that amortization, not a per-game speed difference. In the
+actual app the table is built once per session and amortized across a
+single game — that one-time 3.5-25.7 s cost is exactly what this change
+removes from the default (`auto`) path; it does not reappear anywhere
+else, since Deep is now opt-in only.

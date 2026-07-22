@@ -6,7 +6,7 @@ export const en = {
   'setup.boards': 'Boards',
   'setup.maxGuesses': 'Max guesses',
   'setup.mode': 'Solver mode',
-  'setup.mode.auto': 'Auto (deep when memory allows)',
+  'setup.mode.auto': 'Auto (fast; deep analysis off)',
   'setup.mode.deep': 'Deep',
   'setup.mode.lite': 'Lite',
   'setup.sessions': 'Saved games',

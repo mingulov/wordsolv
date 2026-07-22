@@ -89,7 +89,7 @@ export function GameScreen({ session, onExit, onImported }: { session: Session; 
           </button>
         </p>
       )}
-      {reply && reply.effectiveMode === 'lite' && mode !== 'lite' && (
+      {reply && reply.effectiveMode === 'lite' && mode === 'deep' && (
         <p className="banner warn">{t('game.liteFallback')}</p>
       )}
       {reply && reply.unknownGuesses.length > 0 && (

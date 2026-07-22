@@ -54,7 +54,7 @@ async function handle(req: SuggestRequest): Promise<void> {
     books.set(key, await loadBook(req.m0Url, dict))
   }
   const book = books.get(key) ?? null
-  const wantDeep = req.mode !== 'lite'
+  const wantDeep = req.mode === 'deep'
   if (wantDeep && !tables.has(key)) {
     post({ id: req.id, type: 'progress', message: 'building-table' })
     tables.set(key, buildPatternTable(dict))

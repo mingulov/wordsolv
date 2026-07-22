@@ -8,7 +8,7 @@ export const ru: Record<MsgKey, string> = {
   'setup.boards': 'Полей',
   'setup.maxGuesses': 'Макс. попыток',
   'setup.mode': 'Режим решателя',
-  'setup.mode.auto': 'Авто (глубокий, если хватает памяти)',
+  'setup.mode.auto': 'Авто (быстро; глубокий анализ выключен)',
   'setup.mode.deep': 'Глубокий',
   'setup.mode.lite': 'Лёгкий',
   'setup.sessions': 'Сохранённые игры',
