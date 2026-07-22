@@ -5,7 +5,7 @@ import { makeDictionary, parseDictAsset } from './dictionary'
 import { endgameSearch } from './endgame'
 import { scoreGuess } from './pattern'
 import { suggest } from './solver'
-import { defaultOptions, newGame } from './types'
+import { defaultOptions, newGame, type SolverOptions } from './types'
 
 const CANDS = ['bat', 'cat', 'hat', 'mat', 'pat', 'rat']
 const d = makeDictionary('en', 3, CANDS, ['bch', 'mpr'])
@@ -49,6 +49,44 @@ describe('node budget', () => {
   // second. The control test below proves that, so a null under a tiny budget can
   // only be the budget aborting a search that would otherwise have succeeded.
   const boards = [dict.words.slice(0, 5), dict.words.slice(40, 45), dict.words.slice(80, 85)]
+
+  // 4 boards x 6 candidates with a *single* guess left. Every leaf of the cartesian walk
+  // calls `value(next, 0)`, which returns a base case without ever calling `bestGuess`, so
+  // `bestGuess` runs exactly once — at the root. That pins the per-pool-word tick count to
+  // exactly `pool.length`, which is bounded by the 24 distinct candidates plus at most
+  // ROOT_PROBES (20) probes: at most 44 ticks in the whole search. The leaves, by contrast,
+  // number up to 6^4 per pool word. Both tests below therefore separate leaf counting from
+  // per-guess counting: with the leaf `tick()` removed neither can pass.
+  const wideBoards = [0, 1, 2, 3].map((i) => dict.words.slice(i * 6, i * 6 + 6))
+  const POOL_TICK_CEILING = 44 // |union| (24) + ROOT_PROBES (20); pool dedupes, so this is an upper bound
+
+  /** Options that count every read of `endgameNodeBudget` — i.e. every `tick()`. */
+  function countingOpts(base: SolverOptions, ceiling: number): { opts: SolverOptions; ticks: () => number } {
+    let n = 0
+    const opts = Object.create(base) as SolverOptions
+    Object.defineProperty(opts, 'endgameNodeBudget', { get: () => { n++; return ceiling } })
+    return { opts, ticks: () => n }
+  }
+
+  it('ticks once per cartesian-product leaf, not once per pool word', () => {
+    // Same accessor trick bin/calibrate-endgame.ts uses to count nodes without touching src/.
+    const base = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 50_000_000 }
+    const { opts, ticks } = countingOpts(base, 50_000_000)
+    const r = endgameSearch(wideBoards, 1, dict, opts)
+    expect(r).not.toBeNull() // the search completed, so this is the full tick count
+    // Measured ~41,900 (~950x the ceiling). Asserting 10x leaves ample headroom while still
+    // being unreachable by per-pool-word counting, which cannot exceed 44.
+    expect(ticks()).toBeGreaterThan(POOL_TICK_CEILING * 10)
+  })
+
+  it('aborts on a budget that only leaf counting can exhaust', () => {
+    const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 200 }
+    // 200 > 44, so per-pool-word ticks alone could never reach it: this position would run
+    // to completion. Counting leaves, it aborts.
+    expect(endgameSearch(wideBoards, 1, dict, opts)).toBeNull()
+    // Control: nothing but the budget ended it.
+    expect(endgameSearch(wideBoards, 1, dict, { ...opts, endgameNodeBudget: 50_000_000 })).not.toBeNull()
+  })
 
   it('control: this position completes when the budget is generous', () => {
     const opts = { ...defaultOptions('lite'), timeBudgetMs: 600_000, endgameNodeBudget: 50_000_000 }

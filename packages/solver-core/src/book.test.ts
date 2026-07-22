@@ -9,6 +9,7 @@ import {
 import { makeDictionary, parseDictAsset, type Dictionary } from './dictionary'
 import { boardCandidatesOf, entropyOf, scoreAllWords, weightsFor, type BoardCandidates } from './entropy'
 import { scoreGuess } from './pattern'
+import { buildPatternTable } from './patternTable'
 import { djb2, mulberry32 } from './random'
 import { rateGuessRow, rateGuesses } from './rate'
 import { suggest } from './solver'
@@ -192,6 +193,48 @@ describe('move-0 book equivalence', () => {
     expect(bookLookup(state, dict, bad, unsolvedOf(state, dict))).toBeNull()
     const withBad = scoreAllWords(state, dict, null, bad).scored
     for (let i = 0; i < live.length; i++) expect(withBad[i].score).toBe(live[i].score)
+  })
+})
+
+describe('book priority over a pattern table', () => {
+  it('reads the book, not the table, when both are supplied', () => {
+    // Every other book test passes `table = null`, so nothing there distinguishes the book
+    // lookup from the table lookup inside `scoreWordAgainst` — `entropyOfIdx` and `entropyOf`
+    // agree bit-for-bit, so swapping their priority stays numerically correct while silently
+    // restoring the full move-0 scan for deep-mode users. This test supplies both.
+    const dict = makeDictionary('en', 3, ['bat', 'cat', 'hat', 'mat', 'pat', 'rat'], ['bch', 'mpr'])
+    const table = buildPatternTable(dict)
+    expect(table).not.toBeNull() // a null table would make the whole test vacuous
+    const state = newGame('en', 3, 2)
+
+    // A book holding the true move-0 entropies, so book, table and live path all agree and
+    // the perturbation below is the only observable difference between them.
+    const bc = boardCandidatesOf(state, dict)[0]
+    const move0 = new Float64Array(dict.words.length)
+    for (let i = 0; i < dict.words.length; i++) {
+      move0[i] = entropyOf(dict.words[i], bc.candidates, bc.weights)
+    }
+    const book: OpeningBook = { dictHash: dictHashOf(dict), move0, move1: null }
+    expect(bookLookup(state, dict, book, unsolvedOf(state, dict))).not.toBeNull()
+
+    const tableOnly = scoreAllWords(state, dict, table, null).scored
+    const both = scoreAllWords(state, dict, table, book).scored
+    for (let i = 0; i < tableOnly.length; i++) {
+      expect(both[i].word).toBe(tableOnly[i].word)
+      expect(both[i].score).toBe(tableOnly[i].score)
+    }
+
+    // The claim: with a table present the book still wins. Perturb one entry; the score of
+    // exactly that word must move. If the table took priority the book would be dead weight
+    // and every score would come back unchanged.
+    const target = tableOnly[0]
+    const values = new Float64Array(move0)
+    values[target.idx] += 1e-9
+    const tweaked: OpeningBook = { ...book, move0: values }
+    const withTweak = scoreAllWords(state, dict, table, tweaked).scored
+    const byWord = new Map(tableOnly.map((s) => [s.word, s.score]))
+    const differing = withTweak.filter((s) => s.score !== byWord.get(s.word)).map((s) => s.word)
+    expect(differing).toEqual([target.word])
   })
 })
 
@@ -469,14 +512,58 @@ describe('move-1 tier guard', () => {
     // Baseline: with every board on tier 1 and every pattern in the book, it engages.
     expect(bookLookup(state, dict, book, unsolved)).not.toBeNull()
 
-    // Same position, same in-book patterns, one board reported as widened. Reached by a
-    // direct call because at move 1 a real tier-2 board always *also* carries a pattern
-    // absent from `rowOf` (rowOf's keys are exactly the patterns T1 words produce), so the
-    // pattern check would mask this guard. It is what stops a caller-supplied T1+T2 board
-    // from being scored against T1-only entropies.
+    // Same position, same in-book patterns, one board reported as widened. `bookLookup`
+    // checks the tier *before* the pattern loop, so this is the guard that actually catches
+    // a genuinely T2-widened board (the pattern guard, reached only afterwards, is the
+    // redundant one: rowOf's keys are exactly the patterns T1 words produce, so a tier-1
+    // board's pattern is always present). Supplying in-book patterns isolates it — the test
+    // fails if the tier check is removed, even though the T2-widening test above still
+    // passes via the pattern guard.
     const widened = unsolved.map(({ bc, b }, i) => ({ bc: i === 2 ? { ...bc, tier: 2 as const } : bc, b }))
     expect(bookLookup(state, dict, book, widened)).toBeNull()
   })
+})
+
+describe('move-0 assets', () => {
+  // `dictHash` only pins the word list: a change to `answerWeight` or to `entropyOf` itself
+  // would leave every committed .m0.bin silently stale, and only ru-4 is checked by value
+  // above. Parse + sample every config in the manifest instead. Cheap: one dictionary parse
+  // plus six `entropyOf` calls over T1 per config.
+  const move0Configs = Object.entries(booksJson as Record<string, { m0: boolean; m1: boolean }>)
+    .filter(([, flags]) => flags.m0)
+    .map(([cfg]) => cfg)
+
+  it('the manifest lists a move-0 book for every config', () => {
+    expect(move0Configs).toEqual(Object.keys(booksJson))
+  })
+
+  for (const cfg of move0Configs) {
+    it(`${cfg}: parses, and sampled values match a live entropyOf`, () => {
+      // loadBook throws unless the asset parses, which also checks magic, version, language,
+      // word length, dictHash, word count and t1Count for this config.
+      const { dict, book } = loadBook(cfg)
+      expect(book.move0.length).toBe(dict.words.length)
+      expect(dict.t1Count).toBeLessThan(dict.words.length) // a T2 tier exists, so the boundary samples are real
+
+      const t1 = dict.words.slice(0, dict.t1Count)
+      const w = weightsFor(t1, dict)
+      const rng = mulberry32(djb2(`${cfg}:m0`))
+      // Ends, both sides of the T1/T2 boundary, and one seeded pick inside each tier.
+      const sampled = [
+        0,
+        dict.t1Count - 1,
+        dict.t1Count,
+        dict.words.length - 1,
+        Math.floor(rng() * dict.t1Count),
+        dict.t1Count + Math.floor(rng() * (dict.words.length - dict.t1Count)),
+      ]
+      expect(new Set(sampled).size).toBeGreaterThanOrEqual(5) // the seeded picks may collide with an end
+      for (const i of sampled) {
+        // Exact, not toBeCloseTo: the builder wrote Float64 `entropyOf` output verbatim.
+        expect(book.move0[i]).toBe(entropyOf(dict.words[i], t1, w))
+      }
+    })
+  }
 })
 
 describe('move-1 assets', () => {

@@ -50,11 +50,12 @@ dominate cost: the empty board (move 0, every config) and each pattern reachable
 opener (move 1, word lengths ≤ 6). `bookLookup` returns an `EntropyLookup` that replaces *only*
 the `entropyOf` call inside `scoreWordAgainst`; urgency, the solve bonus, `isCandidateFor` and
 sorting all run unchanged, which is why move-0 output is bit-exact. Guards fall back to live
-scoring on a `dictHash` mismatch, a first guess other than the book's opener, a board pattern
-absent from the book, or any unsolved board with `tier !== 1` — the last is a separate defensive
-check against a caller-supplied inconsistent `BoardCandidates` rather than a restatement of the
-pattern-absence guard, since a real T2-widened board always fails the pattern check first. Assets
-live in `dict/assets/` and are listed in `books.json`.
+scoring on a `dictHash` mismatch, a first guess other than the book's opener, any unsolved board
+with `tier !== 1`, or a board pattern absent from the book. The tier check runs *before* the
+pattern loop, so it is the one that actually catches a genuinely T2-widened board; the
+pattern-absence check is the redundant defensive one (`rowOf`'s keys are exactly the patterns T1
+words produce, so a tier-1 board's pattern is always present). Assets live in `dict/assets/` and
+are listed in `books.json`.
 
 **Deep mode requires a `PatternTable`** (`buildPatternTable(dict)`, a precomputed guess×answer matrix). Without a table passed to `suggest`, 2-ply is silently skipped and scoring falls back to live `scoreGuess`. `buildPatternTable` returns `null` when even the words×T1 fallback exceeds the byte budget — callers must degrade to lite.
 

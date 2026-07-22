@@ -26,8 +26,19 @@ export interface OpeningBook {
   move1: Move1Book | null
 }
 
+/**
+ * Memoized: the join+djb2 costs 0.1 ms (ru-5) to 1.7 ms (en-8) and `rate.ts` hashes twice per
+ * rated row. Keyed on the dictionary object, which is immutable once built; a `WeakMap` so a
+ * discarded dictionary (e.g. after a language switch) is not pinned in memory.
+ */
+const hashCache = new WeakMap<Dictionary, number>()
+
 export function dictHashOf(dict: Dictionary): number {
-  return djb2(dict.words.join('\n'))
+  const hit = hashCache.get(dict)
+  if (hit !== undefined) return hit
+  const h = djb2(dict.words.join('\n'))
+  hashCache.set(dict, h)
+  return h
 }
 
 function writeHeader(view: DataView, magic: string, dict: Dictionary): void {
