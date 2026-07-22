@@ -52,6 +52,31 @@ const state404: GameState = {
   boards: [{ feedback: [scoreGuess('aaaab', 'aaaac')] }],
 }
 
+// Distinct word lengths (6/7/8) so each mode-resolution test below gets its
+// own cache key inside the worker's module-scoped Maps, same reasoning as
+// the en-4/en-5 split above. Tiny 4-word dicts keep a real buildPatternTable
+// call (in the 'deep' case) effectively instant.
+const DICT_TEXT_AUTO = '#wordsolv-dict v1 en 6 3\naaaaab\naaaaac\naaaaad\nzzzzzz\n'
+const stateAuto: GameState = {
+  ...newGame('en', 6, 1),
+  guesses: ['aaaaab'],
+  boards: [{ feedback: [scoreGuess('aaaaab', 'aaaaac')] }],
+}
+
+const DICT_TEXT_DEEP = '#wordsolv-dict v1 en 7 3\naaaaaab\naaaaaac\naaaaaad\nzzzzzzz\n'
+const stateDeep: GameState = {
+  ...newGame('en', 7, 1),
+  guesses: ['aaaaaab'],
+  boards: [{ feedback: [scoreGuess('aaaaaab', 'aaaaaac')] }],
+}
+
+const DICT_TEXT_LITE = '#wordsolv-dict v1 en 8 3\naaaaaaab\naaaaaaac\naaaaaaad\nzzzzzzzz\n'
+const stateLite: GameState = {
+  ...newGame('en', 8, 1),
+  guesses: ['aaaaaaab'],
+  boards: [{ feedback: [scoreGuess('aaaaaaab', 'aaaaaaac')] }],
+}
+
 // --- postMessage capture -------------------------------------------------
 
 let posted: WorkerReply[]
@@ -144,4 +169,90 @@ it('degrades to a null book with a normal result reply (no error) when the move-
 
   expect(rateGuessRowSpy).toHaveBeenCalledTimes(1)
   expect(rateGuessRowSpy.mock.calls[0][5]).toBeNull()
+})
+
+// --- mode resolution: 'auto' must NOT pay the pattern-table cost ---------
+//
+// These three pin `wantDeep` in solver.worker.ts in all three directions.
+// The load-bearing assertion is the *absence* of a 'building-table' progress
+// message for 'auto' (and 'lite'): reverting `wantDeep` to
+// `req.mode !== 'lite'` would make 'auto' build a table again, which these
+// tests would catch even though `effectiveMode` alone would not (an 'auto'
+// request that builds a table still resolves to 'deep', which is a visible
+// difference — but asserting the progress message directly is a more direct,
+// implementation-proximate signal for the specific regression this guards).
+
+it('resolves mode "auto" to lite without building a pattern table', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/auto.txt') return { ok: true, text: async () => DICT_TEXT_AUTO } as unknown as Response
+      if (url === '/dict/auto.m0.bin') return { ok: false, status: 404 } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 301,
+    type: 'suggest',
+    state: stateAuto,
+    mode: 'auto',
+    dictUrl: '/dict/auto.txt',
+    m0Url: '/dict/auto.m0.bin',
+    m1Url: null,
+  }
+  const reply = await send(req)
+
+  expect(reply).toMatchObject({ type: 'result', effectiveMode: 'lite' })
+  expect(posted.some((r) => r.type === 'progress' && r.message === 'building-table')).toBe(false)
+})
+
+it('resolves mode "deep" to deep and builds a pattern table', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/deep.txt') return { ok: true, text: async () => DICT_TEXT_DEEP } as unknown as Response
+      if (url === '/dict/deep.m0.bin') return { ok: false, status: 404 } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 302,
+    type: 'suggest',
+    state: stateDeep,
+    mode: 'deep',
+    dictUrl: '/dict/deep.txt',
+    m0Url: '/dict/deep.m0.bin',
+    m1Url: null,
+  }
+  const reply = await send(req)
+
+  expect(reply).toMatchObject({ type: 'result', effectiveMode: 'deep' })
+  expect(posted.some((r) => r.type === 'progress' && r.message === 'building-table')).toBe(true)
+})
+
+it('resolves mode "lite" to lite without building a pattern table (explicit)', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string): Promise<Response> => {
+      if (url === '/dict/lite.txt') return { ok: true, text: async () => DICT_TEXT_LITE } as unknown as Response
+      if (url === '/dict/lite.m0.bin') return { ok: false, status: 404 } as unknown as Response
+      throw new Error(`unexpected fetch url ${url}`)
+    }),
+  )
+
+  const req: SuggestRequest = {
+    id: 303,
+    type: 'suggest',
+    state: stateLite,
+    mode: 'lite',
+    dictUrl: '/dict/lite.txt',
+    m0Url: '/dict/lite.m0.bin',
+    m1Url: null,
+  }
+  const reply = await send(req)
+
+  expect(reply).toMatchObject({ type: 'result', effectiveMode: 'lite' })
+  expect(posted.some((r) => r.type === 'progress' && r.message === 'building-table')).toBe(false)
 })
