@@ -88,10 +88,15 @@ first:
 
 | | lite | deep |
 |---|---|---|
-| `endgameJointLimit` | 100,000 | 2,000,000 |
 | `twoPly` | off | on (`twoPlyK: 16`, `twoPlySamples: 48`) |
 | `timeBudgetMs` | 1500 | 1500 |
-| `endgameNodeBudget` | 3,000,000 | 3,000,000 |
+
+`endgameJointLimit` (**100**) and `endgameNodeBudget` (**1,200,000**) are
+not mode-dependent — both `lite` and `deep` share the same values. They
+describe where the endgame search finishes, which is a property of the
+search itself, not of whether 2-ply entropy refinement is on. See the
+"Endgame calibration" section of `BENCHMARKS.md` for the sweep data behind
+these two numbers.
 
 Deep mode requires a `PatternTable` (`buildPatternTable(dict)`) to be
 passed into `suggest`/`suggestEntropy` — without a table, entropy scoring

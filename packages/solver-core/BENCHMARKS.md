@@ -202,6 +202,19 @@ more correlated than random ones). Games are played with production
 options; each turn's position is measured separately, so measuring cannot
 perturb play.
 
+Two things a reader needs in order to re-derive these tables: (a) the
+`completed` column here was decided by wall clock alone — these runs used
+a `NODE_CEILING` of 200,000,000 (`bin/calibrate-endgame.ts`'s counting
+options object), which no observation ever came close to reaching, so
+every non-`completed` row timed out on `timeBudgetMs`, not the node
+budget; (b) only positions whose joint candidate product is at most
+`--max-joint` (default 1,000,000) are measured at all — turns whose joint
+product exceeds that are skipped before `endgameSearch` is even called.
+That is why 30 `ru-5x4` games yield `observations=165` rather than the
+~270 turns 30 nine-guess games could produce: early-game turns, where the
+joint product is still huge, are absent by construction, not because they
+were measured and excluded.
+
 ```
 # real ru-5 x4  games=30  seed=42  timeBudgetMs=1500  observations=165
 jointRange | observed | completed | p50 ms | p95 ms | max ms | p50 nodes | p95 nodes | maxNodes
@@ -242,6 +255,26 @@ cost again, with essentially no search happening at all.)
   trials completed with p95 under 400 ms, on both 4-board configs. On real
   `ru-5x4` play it keeps 138 of the 141 searches that ever complete
   (97.9%) and removes all 24 full-budget timeouts.
+
+  **Unprobed band.** The sweep's bucket list jumps straight from 100 to
+  300 — nothing in between was measured, so the exact point where the
+  completion rate falls off between them is not known. The real-position
+  table gives the only data point here: of the 11 real `ru-5x4`
+  observations with joint in `[100, 300)`, 3 complete and 8 time out (the
+  `<300` row above) — those 3 are the entire measured cost of drawing the
+  line at 100 rather than somewhere further into this band, since at 100
+  none of the 11 are attempted in production at all. Had the limit instead
+  included this band, the 8 that don't finish would still time out, but at
+  the new `endgameNodeBudget` that timeout is cheaper than it used to be:
+  the `ru-5x1 <300` bucket's own measured rate (1,835,777 nodes / 1,500 ms
+  ≈ 1.22M nodes/s) means 1,200,000 nodes is reached in 1,200,000 ÷
+  1,223,851 ≈ 0.98 s, so the node budget — not the 1,500 ms wall — would
+  now be the first thing hit. Under the old 3,000,000-node budget, that
+  same rate reaches only 3,000,000 ÷ 1,223,851 ≈ 2.45 s worth of nodes
+  before the wall clock cuts it off at 1,500 ms first, so the old timeout
+  cost the full 1.5 s. In short: a `[100, 300)` timeout would now cost
+  **~1.0 s rather than 1.5 s** — smaller, but this band remains unresolved
+  and is not where the 100 cutoff was chosen.
 - **`endgameNodeBudget` = 1,200,000** — a backstop, deliberately *not* the
   gate. It is ≈2× the p99 node count of completed searches in the retained
   band (`ru-5x4` p99 = 550,656) and clears the largest completed search
@@ -252,7 +285,25 @@ cost again, with essentially no search happening at all.)
   the primary gate for the top few percent of retained positions, which is
   exactly what a backstop must not do. Its remaining job is the `ru-5x1`
   case, where 19 of 129 positions under the joint limit still do not
-  finish: those now abort deterministically at ~460 ms instead of 1,500 ms.
+  finish: those now abort deterministically at roughly **0.8-1.2 s**
+  instead of the full 1,500 ms (arithmetic below) — a partial improvement,
+  not the near-elimination a flat number would suggest.
+
+  Every measured node rate in this document works out to roughly
+  1M nodes/second, so a 1,200,000-node budget aborts in roughly a second:
+  - `ru-5x4` retained band, max: 1,006,247 nodes / 954 ms ≈ 1.05M nodes/s
+  - `ru-5x1 <100` bucket, p95: 2,278,657 nodes / 1,500 ms ≈ 1.52M nodes/s
+  - `ru-5x1 <300` bucket, p50: 1,835,777 nodes / 1,500 ms ≈ 1.22M nodes/s
+  - synthetic bucket 100: 175,968 nodes / 177 ms ≈ 0.99M nodes/s
+
+  Dividing 1,200,000 nodes by the fastest (1.52M/s) and slowest (0.99M/s)
+  of these gives 1,200,000 ÷ 1,519,105 ≈ 0.79 s and 1,200,000 ÷ 994,169 ≈
+  1.21 s — call it **~0.8-1.2 s**. Against the old 1,500 ms full-budget
+  wait, that is a cut of roughly (1500 − 1210) / 1500 ≈ 19% at the slow end
+  to (1500 − 790) / 1500 ≈ 47% at the fast end — roughly a fifth to
+  somewhat under half of the wait, not the ~70% reduction the previous
+  (wrong) ~460 ms figure implied. So `ru-5x1`'s residual endgame waste is
+  reduced, not largely eliminated.
 
 Both options are now shared by the lite and deep branches of
 `defaultOptions`. They describe where the endgame search finishes, which
