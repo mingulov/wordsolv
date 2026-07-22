@@ -184,6 +184,18 @@ describe('serializeGameFile', () => {
     expect(out2).not.toContain('max')
     expect(parseGameFile(out2).state.maxGuesses).toBe(9)
   })
+  it('emits an explicit "mode deep" header when passed \'deep\', so a missing header unambiguously means "unspecified"', () => {
+    const d = parseGameFile('lang ru\nlen 5\nboards 4\n')
+    const out = serializeGameFile(d.state, 'deep')
+    expect(out).toContain('mode deep')
+    expect(parseGameFile(out).mode).toBe('deep')
+  })
+  it('round-trips deep and lite mode headers exactly, distinguishing them from "no mode passed"', () => {
+    const d = parseGameFile('lang ru\nlen 5\nboards 4\n')
+    expect(serializeGameFile(d.state, 'deep')).toContain('mode deep')
+    expect(serializeGameFile(d.state, 'lite')).toContain('mode lite')
+    expect(serializeGameFile(d.state)).not.toMatch(/^mode /m)
+  })
 })
 
 /** Render scoreGuess(guess, answer) in the user's +*- symbols (test helper). */

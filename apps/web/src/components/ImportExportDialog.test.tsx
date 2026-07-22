@@ -58,6 +58,34 @@ it('round-trips an auto session through its own export text unchanged', () => {
   expect(imported.mode).toBe('auto')
 })
 
+it.each(['auto', 'deep', 'lite'] as const)(
+  'round-trips a %s session through its own export text unchanged',
+  (mode) => {
+    const src = newSession('ru', 5, 4, undefined, mode)
+    const onImported = vi.fn()
+    render(
+      <I18nProvider lang="en">
+        <ImportExportDialog session={src} onClose={() => {}} onImported={onImported} />
+      </I18nProvider>,
+    )
+    const exportedText = (screen.getByTestId('export-text') as HTMLTextAreaElement).value
+    if (mode === 'auto') {
+      expect(exportedText).not.toMatch(/^\s*mode\s/m) // 'auto' sessions export with no mode header
+    } else {
+      // Regression coverage: an explicit 'deep' (or 'lite') session must write
+      // an explicit "mode deep"/"mode lite" header — before this fix,
+      // serializeGameFile only special-cased 'lite', so a 'deep' session's
+      // export was byte-identical to an 'auto' session's (no header at all),
+      // and this round-trip silently downgraded Deep sessions to Auto.
+      expect(exportedText).toMatch(new RegExp(`^mode ${mode}$`, 'm'))
+    }
+    fireEvent.change(screen.getByTestId('import-text'), { target: { value: exportedText } })
+    fireEvent.click(screen.getByTestId('import-submit'))
+    const imported = onImported.mock.calls[0][0] as Session
+    expect(imported.mode).toBe(mode)
+  },
+)
+
 it('shows parser errors verbatim', () => {
   render(
     <I18nProvider lang="en">

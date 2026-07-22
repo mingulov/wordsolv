@@ -238,7 +238,7 @@ export function serializeGameFile(state: GameState, mode?: 'deep' | 'lite'): str
     `len ${state.wordLength}`,
     `boards ${state.boardCount}`,
   ]
-  if (mode === 'lite') lines.push('mode lite')
+  if (mode === 'deep' || mode === 'lite') lines.push(`mode ${mode}`)
   if (state.maxGuesses !== defaultMaxGuesses(state.boardCount)) lines.push(`max ${state.maxGuesses}`)
   lines.push('')
   const done = allGreen(state.wordLength)
