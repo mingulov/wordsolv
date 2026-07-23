@@ -23,6 +23,7 @@ const profile: ProviderProfile = {
   feedback: 'rank',
   lexicon: { pos: 'noun', lemmaOnly: true, foldYo: true },
   rankUniverse: 8,
+  informativeRankLimit: 300,
   priorLambda: 0,
   exploreThreshold: 3,
 }
@@ -199,5 +200,63 @@ describe('suggest', () => {
     const r = run(state([{ word: 'w0', feedback: { kind: 'rank', rank: 2 } }], ['unknown']))
     expect(r.suggestions.length).toBeGreaterThan(0)
     expect(r.suggestions.map((s) => s.word)).not.toContain('unknown')
+  })
+
+  // Regression for the lambda-count bug: `resolvePriorLambda` must be driven by
+  // the count of *informative* observations (rank <= profile.informativeRankLimit),
+  // not by the total number of observations ever made. A real session accumulates
+  // many far guesses that carry almost no fit signal (scoreCandidates's 1/rank
+  // weighting) but must not inflate the count into silently selecting the high-N
+  // schedule entry. Here: 2 near observations (rank <= informativeRankLimit=10)
+  // plus 3 far ones (rank > 10) -> total observations.length = 5, informative
+  // count = 2. The schedule's only breakpoint (maxObservations: 2 -> lambda 0)
+  // must apply; the base priorLambda: 1 must NOT apply.
+  //
+  // Verified this fails against the old `resolvePriorLambda(profile,
+  // observations.length)` call: with 5 total observations and no breakpoint
+  // covering maxObservations >= 5, the old code fell through to priorLambda=1,
+  // producing different (and, per BENCHMARKS.md's real-world case, far worse)
+  // suggestions than the lambda=0 schedule entry the low informative count
+  // should select.
+  it('resolves priorLambda from the informative (near) observation count, not the total observation count', () => {
+    const vectors = pool()
+    const cache = new RankCache(vectors, 8)
+    const profileWithLimit: ProviderProfile = {
+      ...profile,
+      priorLambda: 1,
+      priorLambdaSchedule: [{ maxObservations: 2, lambda: 0 }],
+      informativeRankLimit: 10,
+    }
+    const obsList: SemanticState['observations'] = [
+      { word: 'w0', feedback: { kind: 'rank', rank: 3 } }, // near
+      { word: 'w1', feedback: { kind: 'rank', rank: 5 } }, // near
+      { word: 'w2', feedback: { kind: 'rank', rank: 500 } }, // far
+      { word: 'w3', feedback: { kind: 'rank', rank: 600 } }, // far
+      { word: 'w4', feedback: { kind: 'rank', rank: 700 } }, // far
+    ]
+    const r = suggest({
+      state: state(obsList),
+      vectors,
+      profile: profileWithLimit,
+      ladder: ['w5', 'w6'],
+      cache,
+      limit: 3,
+    })
+
+    expect(r.regime).toBe('exploit') // bestRank 3 <= exploreThreshold 3
+
+    const fitObs = obsList.map((o) => ({
+      index: vectors.index.get(o.word)!,
+      rank: (o.feedback as { kind: 'rank'; rank: number }).rank,
+    }))
+    const excluded = new Set(fitObs.map((o) => o.index))
+    const expectedScores = scoreCandidates(vectors, new RankCache(vectors, 8), fitObs, 0)
+    const expectedOrder = rankCandidates(expectedScores, excluded, 3)
+    const expectedWords = expectedOrder.map((i) => vectors.words[i])
+
+    expect(r.suggestions.map((sg) => sg.word)).toEqual(expectedWords)
+    r.suggestions.forEach((sg, i) => {
+      expect(sg.score).toBeCloseTo(expectedScores[expectedOrder[i]], 10)
+    })
   })
 })

@@ -33,14 +33,24 @@ export function suggest(input: SuggestInput): SemanticResult {
   const observations: FitObservation[] = []
   const unvectorised: string[] = []
   let bestRank: number | null = null
+  // Only observations at or below `informativeRankLimit` count toward the
+  // per-N `priorLambdaSchedule` lookup below — the schedule was calibrated
+  // against this count, not against every observation ever made (a real
+  // session accumulates far guesses that must not inflate it into silently
+  // selecting the high-N lambda; see `ProviderProfile.informativeRankLimit`).
+  let informativeCount = 0
 
   for (const obs of state.observations) {
     if (obs.feedback.kind !== 'rank') continue
     const rank = obs.feedback.rank
     if (bestRank === null || rank < bestRank) bestRank = rank
     const index = vectors.index.get(obs.word)
-    if (index === undefined) unvectorised.push(obs.word)
-    else observations.push({ index, rank })
+    if (index === undefined) {
+      unvectorised.push(obs.word)
+    } else {
+      observations.push({ index, rank })
+      if (rank <= profile.informativeRankLimit) informativeCount++
+    }
   }
 
   const solved = bestRank === 1
@@ -66,7 +76,7 @@ export function suggest(input: SuggestInput): SemanticResult {
 
   const remaining = limit - suggestions.length
   if (remaining > 0) {
-    const lambda = resolvePriorLambda(profile, observations.length)
+    const lambda = resolvePriorLambda(profile, informativeCount)
     const scores = scoreCandidates(vectors, cache, observations, lambda)
     const already = new Set(suggestions.map((s) => s.word))
     for (const index of rankCandidates(scores, excluded, remaining + already.size)) {

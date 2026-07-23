@@ -13,6 +13,12 @@ export function parseProfiles(json: string): Map<string, ProviderProfile> {
       throw new Error(`profile "${p.id}": feedback must be rank or similarity`)
     if (typeof p.rankUniverse !== 'number' || !Number.isInteger(p.rankUniverse) || p.rankUniverse <= 0)
       throw new Error(`profile "${p.id}": rankUniverse must be a positive integer`)
+    if (
+      typeof p.informativeRankLimit !== 'number' ||
+      !Number.isInteger(p.informativeRankLimit) ||
+      p.informativeRankLimit <= 0
+    )
+      throw new Error(`profile "${p.id}": informativeRankLimit must be a positive integer`)
     if (typeof p.priorLambda !== 'number' || !(p.priorLambda >= 0))
       throw new Error(`profile "${p.id}": priorLambda must be >= 0`)
     if (p.priorLambdaSchedule !== undefined) {

@@ -347,6 +347,83 @@ untouched by definition, since none of these fixes can act on evidence that does
 not exist. That is the cold-start/probe-coverage weakness spec §10 risk 3 already
 names, not something this fix wave claims to solve.
 
+## Post-ship defect: λ schedule was keyed on total observations, not informative ones
+
+**Found while demoing the CLI.** `suggest.ts` resolved the per-N `priorLambdaSchedule`
+above using `observations.length` — the count of *every* vectorised rank observation the
+player has ever made, however distant. The schedule, however, was calibrated (see "λ
+schedule (Finding 3)" above) against the count of *informative* observations: ones the
+`bin/evaluate.ts` sweep samples from inside the gold fixture's top-300, which is also the
+window the probe ladder targets. In the benchmark that distinction is invisible — every
+gold list is exactly 300 entries long (confirmed: all 40 secrets, `contextno-gold-40x300.json`),
+so every observation the harness can ever produce already has rank ≤300 and "informative
+count" trivially equals "total count." In real play it is not invisible: a session
+accumulates many far guesses (rank in the thousands, out of `rankUniverse: 21000`) that
+carry almost no fit signal (`scoreCandidates`'s `1/rank` weighting) but, under the bug,
+silently inflated the count enough to select the high-N base `priorLambda: 0.1` instead of
+the low-N schedule entry the situation actually calibrated to.
+
+**Fix:** added a new, validated `ProviderProfile` field, `informativeRankLimit` (positive
+integer; `contextno-ru` ships `300` — the same window the schedule and probe ladder already
+assume). `suggest.ts` now counts only observations with `rank <= informativeRankLimit` and
+passes *that* count to `resolvePriorLambda`. `resolvePriorLambda` itself, the schedule
+values, and `exploreThreshold` are unchanged.
+
+**Reproduction (the demo case):** a real state, 5 observations, only 3 inside the top-300 —
+`снег 206, ручей 272, вода 299, влага 322, дождь 811` — true answer `трава`:
+
+| λ | position of `трава` | top suggestions |
+|---|---|---|
+| 0.1 (shipped, via the bug — `observations.length`=5 falls through the schedule) | #158 | год, человек, время, день, место… |
+| 0.05 | #37 | год, время, человек, день… |
+| **0.02 (fixed — informative count = 3, correctly hits the `maxObservations: 3` breakpoint)** | **#5** | земля, дерево, дорога, поверхность, **трава**, море, камень |
+
+Verbatim `bin/solve-semantic.ts` output after the fix, on exactly this input:
+
+```
+$ npx tsx bin/solve-semantic.ts trava-game.txt --top 10
+regime: exploit   best rank: 206   guesses: 5
+ 1. земля                fit
+ 2. дерево               fit
+ 3. дорога               fit
+ 4. поверхность          fit
+ 5. трава                fit
+ 6. море                 fit
+ 7. метр                 fit
+ 8. камень               fit
+ 9. солнце               fit
+10. улица                fit
+```
+
+**Re-measured impact on the existing benchmarks:**
+
+- **`bin/evaluate.ts --section lambda` (held-out one-shot numbers): bit-exact unchanged.**
+  Re-ran the full script; every tuning-split and held-out row above (both this section and
+  "Held-out headline") reproduced exactly. Expected, not a coincidence: this section never
+  goes through `suggest()`/`resolvePriorLambda` at all — it calls `scoreCandidates` with an
+  explicit `lambda` from its own sweep grid — so `informativeRankLimit` cannot touch it.
+
+- **`bin/evaluate.ts --section closed-loop` (the 150-turn headline above, 30/40 solved,
+  median 29): also bit-exact unchanged, but for a reason worth stating plainly rather than
+  glossing over.** This section *does* go through `suggest()`, so the fix is live code here
+  — but the gold fixture's 40 secrets each carry exactly 300 neighbours (verified
+  programmatically), and a guess outside a secret's own top-300 is recorded as `rejected`
+  (no discoverable rank at all, spec §2.1), never as an observation with an inferred large
+  rank. So every observation this harness can ever construct already has rank ≤300 —
+  identical to `informativeRankLimit: 300` — meaning informative count equals total count
+  here too, structurally, the same way "exploreThreshold (Finding 4)" above already found
+  every threshold ≥300 indistinguishable from 300, and "Closed-loop simulation" already found
+  Finding 2's explore-surfacing change unmeasurable in this harness. **This is not evidence
+  the fix does nothing** — the demo case above (ranks to 811) is exactly the real-play
+  situation this harness cannot construct. It is unmeasured here, not disproven here; this
+  offline gold-fixture harness has no observations beyond rank 300 to mismeasure with in the
+  first place.
+
+- **Regression floor (`src/benchmark.test.ts`): unaffected, not just unmoved.** That test
+  calls `scoreCandidates(vs, cache, obs, profile.priorLambda)` directly — it never calls
+  `resolvePriorLambda` or reads `informativeRankLimit` — so there is nothing for this fix to
+  change there. Re-ran anyway: still 1 passed, unchanged.
+
 ## Regression floor
 
 `src/benchmark.test.ts` guards against silent regressions in the core scoring path,
@@ -398,3 +475,16 @@ pointing `ASSET` at a nonexistent path made the suite report `1 skipped` in 165m
 | `npx tsx bin/evaluate.ts --section threshold` (Finding 4 sweep, extended grid) | 1m44s |
 | `npx tsx bin/evaluate.ts --section closed-loop` (headline before/after number) | 28.5s |
 | `npx tsx bin/evaluate.ts --section ladder` (confirms the new probe-ladder asset shape reproduces the existing table bit-exact) | 0.7s |
+
+## Commands run (post-ship defect fix: `informativeRankLimit`)
+
+| command | wall-clock |
+|---|---|
+| `npx tsc --noEmit` | ~0.3s |
+| `npx vitest run` (fast suite, adds the regression test + `informativeRankLimit` validation tests) | 0.27s, 124 passed |
+| `npx vitest run -t 'informative'` with the fix temporarily reverted to `resolvePriorLambda(profile, observations.length)` (verifies the new regression test fails against the old bug) | 1 failed, as expected |
+| `npx vitest run -t 'informative'` restored | 4 passed |
+| `npx vitest run --config vitest.benchmark.config.ts` | 14.1s, 1 passed (unaffected, see above) |
+| `npm run typecheck --workspaces` (repo root) | clean, all 3 packages |
+| `npx tsx bin/evaluate.ts` (full re-run, all four sections; confirms lambda/held-out numbers bit-exact, closed-loop bit-exact — see "Post-ship defect" section above) | 6m53s |
+| `npx tsx bin/solve-semantic.ts` on the demo case (`снег 206, ручей 272, вода 299, влага 322, дождь 811`) | instant; `трава` at #5 (was #158 under the bug) |

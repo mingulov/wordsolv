@@ -117,6 +117,7 @@ describe('resolvePriorLambda', () => {
     feedback: 'rank',
     lexicon: { pos: 'noun', lemmaOnly: true, foldYo: true },
     rankUniverse: 21000,
+    informativeRankLimit: 300,
     priorLambda: 0.1,
     exploreThreshold: 500,
   }

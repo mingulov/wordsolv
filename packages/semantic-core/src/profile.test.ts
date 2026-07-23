@@ -18,6 +18,7 @@ const ok = JSON.stringify([
     feedback: 'rank',
     lexicon: { pos: 'noun', lemmaOnly: true, foldYo: true },
     rankUniverse: 21000,
+    informativeRankLimit: 300,
     priorLambda: 0.25,
     exploreThreshold: 500,
   },
@@ -45,6 +46,24 @@ describe('parseProfiles', () => {
     const bad = JSON.parse(ok)
     bad[0].priorLambda = -1
     expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/priorLambda/)
+  })
+
+  it('rejects a missing informativeRankLimit', () => {
+    const bad = JSON.parse(ok)
+    delete bad[0].informativeRankLimit
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/informativeRankLimit must be a positive integer/)
+  })
+
+  it('rejects a non-positive informativeRankLimit', () => {
+    const bad = JSON.parse(ok)
+    bad[0].informativeRankLimit = 0
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/informativeRankLimit must be a positive integer/)
+  })
+
+  it('rejects a non-integer informativeRankLimit', () => {
+    const bad = JSON.parse(ok)
+    bad[0].informativeRankLimit = 300.5
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/informativeRankLimit must be a positive integer/)
   })
 
   it('rejects an invalid language', () => {
@@ -161,6 +180,9 @@ describe('parseProfiles', () => {
       const profiles = parseProfiles(json)
       const profile = profiles.get('contextno-ru')
       expect(profile).toBeDefined()
+
+      expect(Number.isInteger(profile!.informativeRankLimit)).toBe(true)
+      expect(profile!.informativeRankLimit).toBeGreaterThan(0)
 
       const schedule = profile!.priorLambdaSchedule
       expect(schedule).toBeDefined()
