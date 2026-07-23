@@ -96,6 +96,7 @@ export const en = {
   'semantic.paste': 'Paste',
   'semantic.pasteHint': 'Paste the site’s text as-is — word+rank per line, or word and rank on separate lines (e.g. copied on Android), also works',
   'semantic.pasteApply': 'Apply',
+  'semantic.pasteIgnored': '{n} non-guess lines ignored',
   'semantic.export': 'Export',
   'semantic.back': 'Games',
   'semantic.errRank': 'Rank must be a whole number of 1 or more',

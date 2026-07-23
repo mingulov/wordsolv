@@ -174,7 +174,15 @@ export function SemanticScreen({ onExit }: { onExit: () => void }): JSX.Element 
           onChange={(e) => setPasteText(e.target.value)}
         />
         <button data-testid="semantic-paste-apply" onClick={applyPaste}>{t('semantic.pasteApply')}</button>
-        {pasteWarnings.map((w) => <p key={w} className="banner warn">{w}</p>)}
+        {/* Pasting the whole game page always skips its header and footer text, so a
+            per-line warning for each would make a correct paste look broken. Collapse
+            them behind a summary the user can open if something really did go wrong. */}
+        {pasteWarnings.length > 0 && (
+          <details data-testid="semantic-paste-warnings">
+            <summary>{t('semantic.pasteIgnored').replace('{n}', String(pasteWarnings.length))}</summary>
+            {pasteWarnings.map((w) => <p key={w} className="banner warn">{w}</p>)}
+          </details>
+        )}
       </section>
 
       <section>

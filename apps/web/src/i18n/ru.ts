@@ -98,6 +98,7 @@ export const ru: Record<MsgKey, string> = {
   'semantic.paste': 'Вставить',
   'semantic.pasteHint': 'Вставляйте текст сайта как есть — подходит и «слово ранг» в строке, и слово с рангом на отдельных строках (например, при копировании на Android)',
   'semantic.pasteApply': 'Применить',
+  'semantic.pasteIgnored': 'Пропущено строк без догадки: {n}',
   'semantic.export': 'Экспорт',
   'semantic.back': 'Игры',
   'semantic.errRank': 'Номер должен быть целым числом не меньше 1',
