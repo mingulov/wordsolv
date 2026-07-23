@@ -32,7 +32,7 @@ export function scoreCandidates(
     }
   }
 
-  if (priorLambda > 0) {
+  if (priorLambda !== 0) {
     for (let c = 0; c < count; c++) out[c] += priorLambda * Math.log(c + 1)
   }
   return out
