@@ -28,14 +28,21 @@ describe('parseProbeLadder', () => {
 })
 
 describe('nextProbes', () => {
-  const ladder = ['кот', 'дом', 'море', 'хлеб']
+  // Selection order intentionally diverges from alphabetical order here
+  // (alphabetically: дом, кот, море, хлеб) so a mutant that sorts the ladder
+  // before walking it is detectable by these tests.
+  const ladder = ['хлеб', 'кот', 'дом', 'море']
+
+  it('preserves ladder (selection) order, not alphabetical order', () => {
+    expect(nextProbes(ladder, new Set(), 4)).toEqual(['хлеб', 'кот', 'дом', 'море'])
+  })
 
   it('returns the first unused probes in order', () => {
-    expect(nextProbes(ladder, new Set(['кот']), 2)).toEqual(['дом', 'море'])
+    expect(nextProbes(ladder, new Set(['хлеб']), 2)).toEqual(['кот', 'дом'])
   })
 
   it('returns fewer than the limit when the ladder runs out', () => {
-    expect(nextProbes(ladder, new Set(['кот', 'дом', 'море']), 3)).toEqual(['хлеб'])
+    expect(nextProbes(ladder, new Set(['хлеб', 'кот', 'дом']), 3)).toEqual(['море'])
   })
 
   it('returns an empty list when everything is used', () => {
