@@ -11,3 +11,4 @@ export {
 export { RankCache, predictedRanks } from './ranks'
 export { rankCandidates, scoreCandidates, type FitObservation } from './fit'
 export { nextProbes, parseProbeLadder } from './probe'
+export { suggest, type SuggestInput } from './suggest'
