@@ -3,26 +3,35 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { RankCache } from './ranks'
 import { rankCandidates, scoreCandidates, type FitObservation } from './fit'
+import { parseProfiles } from './profile'
 import { parseVectors } from './vectors'
 import { normalizeWord } from './types'
 
 const ASSET = join(import.meta.dirname, '..', 'dict', 'assets', 'ru.vec.bin')
+const PROFILES = join(import.meta.dirname, '..', 'dict', 'assets', 'profiles.json')
 const GOLD = join(import.meta.dirname, '..', '..', '..', 'docs/superpowers/specs/assets/contextno-gold-40x300.json')
 // This is NOT a held-out measurement: it runs over all 40 gold secrets (no tune/held-out
-// split) with a fixed lambda=0.25, and samples observations deterministically (every 37th
-// neighbour in the gold list) rather than bin/evaluate.ts's random trials. Measured
-// directly (`npx vitest run --config vitest.benchmark.config.ts`, see BENCHMARKS.md):
-// hits=35/40 = 87.5% in the top 10 at N=8. FLOOR sits well below that with headroom for
-// asset/scoring drift, not run-to-run noise -- this loop has no RNG, so it is itself
-// perfectly reproducible; only a changed vector asset, dictionary or scoring constant
-// would move it.
-const FLOOR = 70 // per cent in top-10 at N=8; measured 87.5% (see BENCHMARKS.md)
+// split) and samples observations deterministically (every 37th neighbour in the gold
+// list) rather than bin/evaluate.ts's random trials. `priorLambda` and `rankUniverse` are
+// read from the shipped `dict/assets/profiles.json` ("contextno-ru" profile) rather than
+// hardcoded, so this floor always tracks whatever the product actually runs -- a future
+// re-calibration of `priorLambda` cannot silently desynchronise this test from production
+// again. Measured directly at the shipped lambda=0.1 (`npx vitest run --config
+// vitest.benchmark.config.ts`, see BENCHMARKS.md): hits=31/40 = 77.5% in the top 10 at
+// N=8. FLOOR sits below that with headroom for asset/scoring drift, not run-to-run noise
+// -- this loop has no RNG, so it is itself perfectly reproducible; only a changed vector
+// asset, dictionary, scoring constant, or `priorLambda` recalibration would move it. If
+// `priorLambda` changes, re-measure and update both this comment and FLOOR.
+const FLOOR = 65 // per cent in top-10 at N=8; measured 77.5% at shipped lambda=0.1 (see BENCHMARKS.md)
 
 describe.runIf(existsSync(ASSET))('regression floor', () => {
   it('keeps the answer in the top 10 for most secrets at N=8', () => {
     const vs = parseVectors(new Uint8Array(readFileSync(ASSET)))
+    const profiles = parseProfiles(readFileSync(PROFILES, 'utf8'))
+    const profile = profiles.get('contextno-ru')
+    if (!profile) throw new Error('contextno-ru profile missing from dict/assets/profiles.json')
     const gold: Record<string, string[]> = JSON.parse(readFileSync(GOLD, 'utf8'))
-    const cache = new RankCache(vs, 21000)
+    const cache = new RankCache(vs, profile.rankUniverse)
     let hits = 0
     let total = 0
     for (const [rawSecret, rawList] of Object.entries(gold)) {
@@ -35,7 +44,7 @@ describe.runIf(existsSync(ASSET))('regression floor', () => {
         if (index !== undefined) obs.push({ index, rank: i + 1 })
       }
       if (obs.length < 8) continue
-      const scores = scoreCandidates(vs, cache, obs, 0.25)
+      const scores = scoreCandidates(vs, cache, obs, profile.priorLambda)
       const top = rankCandidates(scores, new Set(), 10)
       total++
       if (top.includes(vs.index.get(secret)!)) hits++

@@ -126,12 +126,21 @@ underlying cold-start weakness spec §10 risk 3 already calls out.
 
 `src/benchmark.test.ts` guards against silent regressions in the core scoring path,
 independent of the held-out sweep above. It samples every 37th neighbour (not
-`bin/evaluate.ts`'s random trials) from *all* 40 gold secrets (no tune/held-out split)
-at a fixed λ=0.25, and checks the true answer lands in the top 10 at N=8 observations.
-Measured: **35/40 = 87.5%**. `FLOOR` is set to `70` — well below the measured value,
-with headroom for asset/scoring drift (dictionary rebuild, `SOLVE_BONUS`-equivalent
-scoring-constant changes) rather than run-to-run noise, since this particular loop has
-no RNG and is otherwise perfectly reproducible.
+`bin/evaluate.ts`'s random trials) from *all* 40 gold secrets (no tune/held-out split),
+and checks the true answer lands in the top 10 at N=8 observations. `priorLambda` and
+`rankUniverse` are read from the shipped `dict/assets/profiles.json` (`contextno-ru`
+profile) rather than hardcoded, so the floor always tracks whatever the product
+actually ships.
+
+Measured at the shipped **λ=0.1**: **31/40 = 77.5%**. (An earlier version of this test
+hardcoded λ=0.25 — the value in-sample-selected before Task 9's held-out sweep chose
+0.1 — and measured 35/40 = 87.5% at that stale λ; that figure no longer describes what
+ships and should not be quoted for the current configuration.) `FLOOR` is set to `65`
+— below the measured 77.5%, with headroom for asset/scoring drift (dictionary rebuild,
+scoring-constant changes, or a future `priorLambda` re-calibration) rather than
+run-to-run noise, since this particular loop has no RNG and is otherwise perfectly
+reproducible. If `priorLambda` changes again, re-measure and update this section,
+`FLOOR`, and the comment in `src/benchmark.test.ts` together.
 
 The test is wrapped in `describe.runIf(existsSync(ASSET))` so CI, which does not build
 the 27.5 MB `ru.vec.bin` asset, skips this test instead of failing. Verified directly:
