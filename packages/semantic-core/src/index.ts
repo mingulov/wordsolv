@@ -5,3 +5,6 @@ export {
   type SemanticResult, type SemanticState, type SemanticSuggestion,
 } from './types'
 export { parseProfiles } from './profile'
+export {
+  VECTOR_ASSET_VERSION, parseVectors, serializeVectors, similarityTo, type VectorSet,
+} from './vectors'
