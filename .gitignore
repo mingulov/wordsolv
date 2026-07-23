@@ -7,3 +7,6 @@ apps/web/public/dict/
 apps/web/test-results/
 apps/web/playwright-report/
 .playwright-mcp/
+packages/semantic-core/dict/raw/
+packages/semantic-core/dict/assets/ru.vec.bin
+packages/semantic-core/dict/assets/ru.probes.json
