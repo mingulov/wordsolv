@@ -15,6 +15,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@wordsolv/semantic-core": "*",
     "@wordsolv/solver-core": "*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
