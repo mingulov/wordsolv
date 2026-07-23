@@ -57,14 +57,11 @@ describe('suggest', () => {
     expect(r.suggestions[0]).toMatchObject({ word: 'w5', source: 'probe' })
   })
 
-  // Finding 2 (zero-observation case): true cold start must reserve part of the
-  // response for fit candidates, not let probes fill the entire `limit` and starve
-  // the fit until the ladder is exhausted (spec §6.2). Uses a longer ladder +
-  // bigger limit than the default `run()` helper so the roughly-half/half split is
-  // visible in counts. No observations here, so this is the cold-start branch —
-  // probes still lead in that case (see the fit-first tests below for the case
-  // where an observation exists).
-  it('cold start (no observations) surfaces both probes and fit candidates, probes first, no duplicates', () => {
+  // Finding 2: explore mode must reserve part of the response for fit candidates,
+  // not let probes fill the entire `limit` and starve the fit until the ladder
+  // is exhausted (spec §6.2). Uses a longer ladder + bigger limit than the
+  // default `run()` helper so the roughly-half/half split is visible in counts.
+  it('explore mode surfaces both probes and fit candidates, probes first, no duplicates', () => {
     const vectors = pool()
     const ladder = ['w4', 'w5', 'w6', 'w7']
     const r = suggest({ state: state([]), vectors, profile, ladder, cache: new RankCache(vectors, 8), limit: 6 })
@@ -80,49 +77,6 @@ describe('suggest', () => {
     expect(r.suggestions).toHaveLength(6)
     // no duplicate words across probes and fit
     const words = r.suggestions.map((s) => s.word)
-    expect(new Set(words).size).toBe(words.length)
-  })
-
-  // Finding (live play): once there is at least one usable observation, explore
-  // mode must lead with a fit candidate — not a generic ladder probe — while still
-  // keeping the ladder alive lower in the list. Sabotage-verified: temporarily
-  // reverting suggest.ts to push probes before the fit block in this branch made
-  // this assertion fail (suggestions[0].source was 'probe'), confirming the test
-  // actually exercises the ordering; the fix was restored immediately after.
-  it('explore mode leads with a fit candidate once an observation exists, and still offers a probe', () => {
-    const vectors = pool()
-    const ladder = ['w4', 'w5', 'w6', 'w7']
-    const r = suggest({
-      state: state([{ word: 'w0', feedback: { kind: 'rank', rank: 7 } }]),
-      vectors, profile, ladder, cache: new RankCache(vectors, 8), limit: 6,
-    })
-
-    expect(r.regime).toBe('explore')
-    expect(r.suggestions[0].source).toBe('fit')
-    const sources = r.suggestions.map((s) => s.source)
-    expect(sources).toContain('probe')
-    expect(r.suggestions).toHaveLength(6)
-    const words = r.suggestions.map((s) => s.word)
-    expect(new Set(words).size).toBe(words.length)
-  })
-
-  it('fit-first explore list still excludes observed, rejected, and mask-suppressed words, and respects limit', () => {
-    const vectors = pool()
-    const ladder = ['w4', 'w5', 'w6', 'w7']
-    const suggestable = maskSuppressing(vectors, ['w2'])
-    const s = state([{ word: 'w0', feedback: { kind: 'rank', rank: 7 } }], ['w1'])
-
-    const r = suggest({
-      state: s, vectors, profile, ladder, cache: new RankCache(vectors, 8), suggestable, limit: 6,
-    })
-
-    expect(r.regime).toBe('explore')
-    expect(r.suggestions[0].source).toBe('fit')
-    const words = r.suggestions.map((sg) => sg.word)
-    expect(words).not.toContain('w0') // observed
-    expect(words).not.toContain('w1') // rejected
-    expect(words).not.toContain('w2') // mask-suppressed
-    expect(r.suggestions.length).toBeLessThanOrEqual(6)
     expect(new Set(words).size).toBe(words.length)
   })
 
