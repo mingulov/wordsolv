@@ -10,3 +10,4 @@ export {
 } from './vectors'
 export { RankCache, predictedRanks } from './ranks'
 export { rankCandidates, scoreCandidates, type FitObservation } from './fit'
+export { nextProbes, parseProbeLadder } from './probe'
