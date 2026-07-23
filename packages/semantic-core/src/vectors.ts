@@ -41,7 +41,8 @@ export function serializeVectors(words: string[], rows: Float32Array, dim: numbe
   const text = new TextEncoder().encode(header + words.join('\n') + '\n')
   const out = new Uint8Array(text.length + dim * 4 + quant.length)
   out.set(text, 0)
-  new Uint8Array(new Float32Array(scale).buffer).forEach((b, i) => { out[text.length + i] = b })
+  const scaleView = new DataView(out.buffer, text.length, dim * 4)
+  for (let d = 0; d < dim; d++) scaleView.setFloat32(d * 4, scale[d], true)
   out.set(new Uint8Array(quant.buffer), text.length + dim * 4)
   return out
 }
@@ -57,6 +58,9 @@ export function parseVectors(bytes: Uint8Array): VectorSet {
   const count = Number(header[2])
   const dim = Number(header[3])
   const hash = header[4]
+  if (!Number.isSafeInteger(count) || count < 0) throw new Error(`invalid semvec count ${header[2]}`)
+  if (!Number.isSafeInteger(dim) || dim < 0) throw new Error(`invalid semvec dim ${header[3]}`)
+  if (hash === undefined) throw new Error('vector asset truncated: incomplete header')
 
   let pos = nl + 1
   const words: string[] = []
@@ -75,7 +79,9 @@ export function parseVectors(bytes: Uint8Array): VectorSet {
   const view = new DataView(bytes.buffer, bytes.byteOffset + pos, dim * 4)
   for (let d = 0; d < dim; d++) scale[d] = view.getFloat32(d * 4, true)
   pos += dim * 4
-  const data = new Int8Array(bytes.buffer.slice(bytes.byteOffset + pos, bytes.byteOffset + pos + count * dim))
+  // Zero-copy view over the payload — Int8Array has no alignment constraint, so
+  // this avoids doubling peak memory on the full ~26MB production asset.
+  const data = new Int8Array(bytes.buffer, bytes.byteOffset + pos, count * dim)
 
   return { words, index, dim, data, scale, hash }
 }
