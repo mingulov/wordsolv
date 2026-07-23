@@ -13,7 +13,7 @@ export function predictedRanks(vs: VectorSet, wordIndex: number, rankUniverse: n
   const sims = similarityTo(vs, wordIndex, new Float32Array(count))
 
   const universe = Math.min(rankUniverse, count)
-  const sorted = Float32Array.prototype.slice.call(sims, 0, universe) as Float32Array
+  const sorted = sims.slice(0, universe)
   sorted.sort()                      // ascending
   // reverse in place -> descending
   for (let a = 0, b = universe - 1; a < b; a++, b--) {
@@ -47,6 +47,11 @@ export class RankCache {
     private readonly rankUniverse: number,
   ) {}
 
+  /**
+   * Returns the cached ranks for `wordIndex`, computing and memoising them on first access.
+   * The returned array is owned by the cache (not copied) — callers must not mutate it,
+   * or every future `get(wordIndex)` will return the corrupted array.
+   */
   get(wordIndex: number): Int32Array {
     const hit = this.entries.get(wordIndex)
     if (hit) return hit
