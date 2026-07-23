@@ -17,12 +17,16 @@ const GOLD = join(import.meta.dirname, '..', '..', '..', 'docs/superpowers/specs
 // hardcoded, so this floor always tracks whatever the product actually runs -- a future
 // re-calibration of `priorLambda` cannot silently desynchronise this test from production
 // again. Measured directly at the shipped lambda=0.1 (`npx vitest run --config
-// vitest.benchmark.config.ts`, see BENCHMARKS.md): hits=31/40 = 77.5% in the top 10 at
-// N=8. FLOOR sits below that with headroom for asset/scoring drift, not run-to-run noise
-// -- this loop has no RNG, so it is itself perfectly reproducible; only a changed vector
-// asset, dictionary, scoring constant, or `priorLambda` recalibration would move it. If
-// `priorLambda` changes, re-measure and update both this comment and FLOOR.
-const FLOOR = 65 // per cent in top-10 at N=8; measured 77.5% at shipped lambda=0.1 (see BENCHMARKS.md)
+// vitest.benchmark.config.ts`, see BENCHMARKS.md): hits=39/40 = 97.5% in the top 10 at
+// N=8, after the scale-relative-prior fix (see BENCHMARKS.md's "live-play defect" section
+// -- this test calls scoreCandidates directly with the shipped priorLambda, so it exercises
+// the fixed normalisation even though it never goes through resolvePriorLambda/the
+// now-removed priorLambdaSchedule). The pre-fix figure at the same lambda was 31/40 = 77.5%.
+// FLOOR sits below the current 97.5% with headroom for asset/scoring drift, not run-to-run
+// noise -- this loop has no RNG, so it is itself perfectly reproducible; only a changed
+// vector asset, dictionary, scoring constant, or `priorLambda` recalibration would move it.
+// If `priorLambda` changes, re-measure and update both this comment and FLOOR.
+const FLOOR = 90 // per cent in top-10 at N=8; measured 97.5% at shipped lambda=0.1 post-fix (see BENCHMARKS.md)
 
 describe.runIf(existsSync(ASSET))('regression floor', () => {
   it('keeps the answer in the top 10 for most secrets at N=8', () => {

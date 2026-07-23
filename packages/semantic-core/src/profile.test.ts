@@ -169,13 +169,24 @@ describe('parseProfiles', () => {
     expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/strictly ascending/)
   })
 
-  // Minor 3: the shipped profile (dict/assets/profiles.json) carries the λ
-  // schedule but was previously validated only by src/benchmark.test.ts, which
-  // CI skips (no vector asset). This test reads the real committed asset
-  // directly, requires no vector asset, and runs unconditionally in the fast
-  // suite, so CI actually exercises the shape that ships.
+  // Minor 3 (superseded — see the scale-relative-prior fix, BENCHMARKS.md's "live-play
+  // defect" and "λ schedule re-sweep" sections): the shipped profile carried a
+  // priorLambdaSchedule (0.02 for N<=3, 0.05 for N=4) that was calibrated against the old
+  // *additive* prior's low-N swamping problem. Once the prior became scale-relative (dividing
+  // the fit term by its own mean before adding priorLambda*log(c+1)), that problem no longer
+  // exists, and a from-scratch tuning-split re-sweep (bin/evaluate.ts --section lambda) found
+  // no N in 1..8 where the schedule's old low values (0.02) beat the flat base priorLambda
+  // (0.1) — 0.1 matched or beat every alternative on tuning-split top-10 at every N except a
+  // 3-point (noise-level, 120-sample) gap at N=8. So the schedule was dropped rather than
+  // re-tuned: this test now asserts it is *absent*, the opposite of what it asserted before,
+  // and this comment plus BENCHMARKS.md is why. `priorLambdaSchedule` remains a supported,
+  // validated, backward-compatible `ProviderProfile` field (see profile.ts/fit.ts) for any
+  // future profile that does need one — `contextno-ru` simply no longer does.
+  //
+  // This test reads the real committed asset directly, requires no vector asset, and runs
+  // unconditionally in the fast suite, so CI actually exercises the shape that ships.
   describe('the real shipped dict/assets/profiles.json', () => {
-    it('parses, and contextno-ru carries a valid, strictly-ascending priorLambdaSchedule', () => {
+    it('parses, and contextno-ru has a positive informativeRankLimit and no priorLambdaSchedule', () => {
       const json = readFileSync(SHIPPED_PROFILES, 'utf8')
       const profiles = parseProfiles(json)
       const profile = profiles.get('contextno-ru')
@@ -183,19 +194,22 @@ describe('parseProfiles', () => {
 
       expect(Number.isInteger(profile!.informativeRankLimit)).toBe(true)
       expect(profile!.informativeRankLimit).toBeGreaterThan(0)
+      expect(profile!.priorLambdaSchedule).toBeUndefined()
+    })
 
-      const schedule = profile!.priorLambdaSchedule
-      expect(schedule).toBeDefined()
-      expect(schedule!.length).toBeGreaterThan(0)
-
-      for (const bp of schedule!) {
-        expect(Number.isInteger(bp.maxObservations)).toBe(true)
-        expect(bp.maxObservations).toBeGreaterThan(0)
-        expect(bp.lambda).toBeGreaterThanOrEqual(0)
-      }
-      for (let i = 1; i < schedule!.length; i++) {
-        expect(schedule![i].maxObservations).toBeGreaterThan(schedule![i - 1].maxObservations)
-      }
+    it('would still validate a strictly-ascending priorLambdaSchedule, if one were added back', () => {
+      const json = readFileSync(SHIPPED_PROFILES, 'utf8')
+      const withSchedule = JSON.parse(json)
+      withSchedule[0].priorLambdaSchedule = [
+        { maxObservations: 2, lambda: 0.05 },
+        { maxObservations: 4, lambda: 0.1 },
+      ]
+      const profiles = parseProfiles(JSON.stringify(withSchedule))
+      const schedule = profiles.get('contextno-ru')!.priorLambdaSchedule
+      expect(schedule).toEqual([
+        { maxObservations: 2, lambda: 0.05 },
+        { maxObservations: 4, lambda: 0.1 },
+      ])
     })
   })
 })

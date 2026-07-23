@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { rankCandidates, resolvePriorLambda, scoreCandidates } from './fit'
+import { rankCandidates, resolvePriorLambda, scoreCandidates, type FitObservation } from './fit'
 import { RankCache } from './ranks'
 import { parseVectors, serializeVectors } from './vectors'
+import { mulberry32 } from './random'
 import type { ProviderProfile } from './types'
 
 /**
@@ -36,6 +37,42 @@ function asymmetricSix(): ReturnType<typeof parseVectors> {
   const dim = 2
   const rows = new Float32Array([3, 4, 4, 3, 0, 1, 1, 0, -3, 4, -4, -3])
   return parseVectors(serializeVectors(words, rows, dim))
+}
+
+/**
+ * 2000 words on a seeded-random 24-dim embedding (mulberry32(42) — deterministic), pool
+ * (frequency) order == index order but, unlike `line()`/`asymmetricSix()`, uncorrelated
+ * with the embedding geometry, matching a real dictionary where frequency and meaning are
+ * independent. `secretIndex` is deliberately not near the front of pool order. The 8
+ * observations are each a *true* (internally consistent, self-computed) rank of the secret
+ * from a different probe word's own neighbourhood, kept only if "far" (> 40% of the
+ * universe) — proportionally the same regime as the live 59-observation session that
+ * exposed this defect (every observed rank 815..18822 out of a ~21000 word universe, none
+ * inside the top 300; see BENCHMARKS.md's "live-play defect" section).
+ */
+function farObservationFixture(): {
+  vs: ReturnType<typeof parseVectors>
+  cache: RankCache
+  secretIndex: number
+  observations: FitObservation[]
+} {
+  const count = 2000
+  const dim = 24
+  const rng = mulberry32(42)
+  const words = Array.from({ length: count }, (_, i) => `word${String(i).padStart(4, '0')}`)
+  const rows = new Float32Array(count * dim)
+  for (let i = 0; i < count * dim; i++) rows[i] = rng() * 2 - 1
+  const vs = parseVectors(serializeVectors(words, rows, dim))
+  const cache = new RankCache(vs, count)
+
+  const secretIndex = 1370
+  const observations: FitObservation[] = []
+  for (let probe = 0; probe < count && observations.length < 8; probe += 7) {
+    if (probe === secretIndex) continue
+    const rank = cache.get(probe)[secretIndex]
+    if (rank > count * 0.4) observations.push({ index: probe, rank })
+  }
+  return { vs, cache, secretIndex, observations }
 }
 
 describe('scoreCandidates', () => {
@@ -80,13 +117,22 @@ describe('scoreCandidates', () => {
       'b',
     ])
 
-    // With lambda=1 the prior adds ln(2)=0.693147 to b's loss and ln(5)=1.609438 to e's,
-    // which overtakes e's fit-loss advantage and demotes it below b:
-    //   loss'(b) = 0.16791774106369495 + ln(2) = 0.8610649216236402
-    //   loss'(e) = 0                    + ln(5) = 1.6094379124341003
-    const withPrior = scoreCandidates(vs, cache, observations, 1)
-    expect(withPrior[1]).toBeCloseTo(0.8610649216236402, 9)
-    expect(withPrior[4]).toBeCloseTo(1.6094379124341003, 9)
+    // The prior is scale-relative: it is added only after every raw fit value is divided by
+    // their own mean across all 6 candidates (see scoreCandidates), so it means the same
+    // thing regardless of how tight or spread the raw fit values are. Raw fit values here
+    // (lambda=0) are [0.5180580787960469, 0.16791774106369495, 0.0521885635791827,
+    // 0.009958608898623468, 0, 0.0066482300143542485]; their mean (the normalising scale) is
+    // 0.12579520372531702, so b's normalised fit loss is 0.16791774106369495 /
+    // 0.12579520372531702 = 1.3348501062914574 and e's is 0 / 0.12579520372531702 = 0. At
+    // lambda=1 the prior (ln(2)=0.693147 for b, ln(5)=1.609438 for e) is not yet large enough
+    // to close that 1.33-point normalised-fit gap, so 'e' still wins (loss 1.609 < 2.028) --
+    // demonstrating normalisation is not merely cosmetic, unlike the pre-fix additive prior,
+    // which flipped the order already at lambda=1. lambda=2 is large enough to overtake it:
+    //   loss'(b) = 1.3348501062914574 + 2*ln(2) = 2.7211444674113476
+    //   loss'(e) = 0                  + 2*ln(5) = 3.2188758248682006
+    const withPrior = scoreCandidates(vs, cache, observations, 2)
+    expect(withPrior[1]).toBeCloseTo(2.7211444674113476, 9)
+    expect(withPrior[4]).toBeCloseTo(3.2188758248682006, 9)
     expect(rankCandidates(withPrior, keepOnlyBandE, 2).map((i) => vs.words[i])).toEqual([
       'b',
       'e',
@@ -196,9 +242,16 @@ describe('fit formula verification', () => {
     const cache = new RankCache(vs, 8)
 
     // Observation: w3 is rank 4 (middle of the spectrum)
-    // This should be relatively neutral for most words, but the prior should still favor lower indices
+    // This should be relatively neutral for most words, but the prior should still favor lower indices.
+    // The prior is scale-relative (normalised by the raw fit term's own mean across
+    // candidates before it is added — see scoreCandidates), so on this 8-word toy fixture the
+    // shipped-magnitude lambda=0.1 is normalised away to nothing: it moves the internal order
+    // of the top-3 set but not its membership, leaving the same average index either way (both
+    // 2.6666666666666665 — verified separately, not asserted here since it would be a
+    // vacuous < comparison). lambda=1 is large enough, relative to the normalised fit term
+    // (mean 1 by construction), to actually shift which three words make the top-3.
     const withoutPrior = scoreCandidates(vs, cache, [{ index: 3, rank: 4 }], 0)
-    const withPrior = scoreCandidates(vs, cache, [{ index: 3, rank: 4 }], 0.1)
+    const withPrior = scoreCandidates(vs, cache, [{ index: 3, rank: 4 }], 1)
 
     // Without prior, lower indices should not have a systematic advantage
     // With prior, lower indices should consistently score better
@@ -226,13 +279,51 @@ describe('fit formula verification', () => {
     expect(rankCandidates(noPrior, keepOnlyEandF, 2).map((i) => vs.words[i])).toEqual(['e', 'f'])
 
     // A negative lambda must apply (not be silently dropped): it subtracts more from the
-    // rarer word's loss (ln(6) for f, index 5) than the more frequent one's (ln(5) for e,
-    // index 4), so a large enough negative lambda inverts the order to favour the rarer word.
-    //   loss'(e) = 0                      + (-1)*ln(5) = -1.6094379124341003
-    //   loss'(f) = 0.0066482300143542485 + (-1)*ln(6) = -1.7851112392137007
+    // rarer word's (normalised) loss (ln(6) for f, index 5) than the more frequent one's
+    // (ln(5) for e, index 4), so a large enough negative lambda inverts the order to favour
+    // the rarer word. Normalised by the same mean as the positive-lambda test above
+    // (0.12579520372531702; e's raw fit is 0, f's is 0.0066482300143542485):
+    //   loss'(e) = 0                   / 0.12579520372531702 + (-1)*ln(5) = -1.6094379124341003
+    //   loss'(f) = 0.0066482300143542485 / 0.12579520372531702 + (-1)*ln(6) = -1.7389098388965907
     const negPrior = scoreCandidates(vs, cache, observations, -1)
     expect(negPrior[4]).toBeCloseTo(-1.6094379124341003, 9)
-    expect(negPrior[5]).toBeCloseTo(-1.7851112392137007, 9)
+    expect(negPrior[5]).toBeCloseTo(-1.7389098388965907, 9)
     expect(rankCandidates(negPrior, keepOnlyEandF, 2).map((i) => vs.words[i])).toEqual(['f', 'e'])
+  })
+})
+
+// Live-play defect (see BENCHMARKS.md's "live-play defect" section): a real 59-observation
+// Contexto session (secret "чайник"), every observed rank far from the secret (815..18822 out
+// of a ~21000 word universe, none inside the top 300), put the true answer at #1327 under the
+// pre-fix additive prior — even the schedule's smallest lambda (0.02) completely dominated the
+// vanishingly small fit differences that far-only evidence produces, collapsing the ranking to
+// plain frequency (pool) order. `scoreCandidates` must not do this: a fixed, non-scale-relative
+// prior is the root cause, so the regression pins that the prior's effect stays proportionate
+// to the fit term's own scale no matter how far the evidence is.
+describe('regression: far-only observations must not collapse to pool order (live-play defect)', () => {
+  it('recovers a non-frequent secret from only far observations; a fixed-magnitude prior alone would not', () => {
+    const { vs, cache, secretIndex, observations } = farObservationFixture()
+    // Sanity-check the fixture itself before trusting the assertions below: 8 genuinely far
+    // observations (see farObservationFixture), not e.g. 0 due to an unrelated future change.
+    expect(observations.length).toBe(8)
+
+    // lambda=0.02 is the shipped schedule's own lowest breakpoint (dict/assets/profiles.json)
+    // — exactly what a real session with zero *informative* observations resolves to (as this
+    // synthetic all-far one would), and the value the live session above actually ran at.
+    const scores = scoreCandidates(vs, cache, observations, 0.02)
+
+    // The defect signature: an unnormalised prior swamps the tiny far-observation fit
+    // differences, so the ranking degenerates to pure pool order — the lowest indices, in
+    // ascending order. (Reverting the normalisation in scoreCandidates reproduces exactly
+    // `top5 === [0, 1, 2, 3, 4]` and pushes the secret to position 971 in this fixture —
+    // verified by hand while developing this test, not asserted here since asserting against
+    // the buggy behaviour directly would defeat the point of a regression test.)
+    const top5 = rankCandidates(scores, new Set(), 5)
+    expect(top5).not.toEqual([0, 1, 2, 3, 4])
+
+    // The real signal must survive: the secret should rank well inside the top of 2000
+    // candidates, not be buried near the bottom the way the additive prior buries it.
+    const position = rankCandidates(scores, new Set(), vs.words.length).indexOf(secretIndex) + 1
+    expect(position).toBeLessThanOrEqual(10)
   })
 })

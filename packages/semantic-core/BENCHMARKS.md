@@ -23,6 +23,14 @@ likely look worse than reported here. No rare-noun secrets were available to tes
 
 ## λ schedule (Finding 3): calibrated per informative-observation count, not a constant
 
+**Superseded — see "Live-play defect: additive prior collapses under far-only evidence" further
+below.** Everything in this section (and the "Held-out headline" and "Closed-loop simulation"
+sections that follow it) was measured against the *additive* prior (`fit(c) + λ·log(c+1)`). The
+prior became scale-relative afterwards, `priorLambdaSchedule` was re-swept and dropped entirely
+(a flat `priorLambda: 0.1` now covers every observation count), and every number below is
+consequently stale. Left in place as the historical record of how the schedule the fix eventually
+removed came to be; do not read it as describing the shipped profile.
+
 **Real sessions rarely reach the N=8 observations the original λ=0.1 was calibrated
 at.** The closed-loop simulation below (§ "Closed-loop simulation") shows a **median
 of only 3** informative observations even *at solve time* — so a constant λ tuned at
@@ -112,6 +120,9 @@ This is backward compatible: any profile without `priorLambdaSchedule` behaves
 exactly as before (constant `priorLambda` for every N).
 
 ## Held-out headline (N≥5, base λ=0.1 — unaffected by the schedule above)
+
+**Superseded — stale, pre-scale-relative-prior numbers.** See "Live-play defect" below for the
+current held-out headline (every row improved after the fix; nothing regressed).
 
 | Guesses ranked ≤300 | median | top-10 | top-50 |
 |---|---|---|---|
@@ -263,6 +274,10 @@ because the action taken was "keep the incumbent" rather than adopt a value chos
 by peeking at held-out data), and the honest answer is "keep 500."
 
 ## Closed-loop simulation (Findings 2 & 3: cap-matched, correctly attributed)
+
+**Superseded — stale, pre-scale-relative-prior numbers (30/40, median 29).** See "Live-play
+defect" below for the current closed-loop headline (30/40, median 26 — same solve count, faster
+median).
 
 The most decision-relevant number: not "where does the true answer rank given N
 observations" (above), but "how many turns does an actual player need, end to end,
@@ -424,6 +439,210 @@ regime: exploit   best rank: 206   guesses: 5
   `resolvePriorLambda` or reads `informativeRankLimit` — so there is nothing for this fix to
   change there. Re-ran anyway: still 1 passed, unchanged.
 
+## Live-play defect: additive prior collapses to pool order under far-only evidence
+
+**Found by a live game against the real service, not any offline harness** — see below for why
+the harness structurally could not have found it. A real Contexto session (secret `чайник`), 59
+real guesses (`.superpowers/sdd/live-chainik-59obs.log`), every one of them far from the secret
+(observed ranks 815..18822 out of the `contextno-ru` profile's ~21000-word `rankUniverse`; the
+best guess reached rank 815 and never got inside the top 300). Under the then-shipped scoring,
+the true secret landed at **#1327** — nowhere near the top-8 the solver actually surfaced (`год,
+человек, время, работа, день, ...`, i.e. plain corpus-frequency order).
+
+### Root cause
+
+`scoreCandidates`'s loss (`src/fit.ts`) was `fit(c) + λ·log(c+1)` — a **fixed additive**
+frequency prior. The fit term's own magnitude is not fixed: it shrinks toward zero as
+observations get farther from the secret (far observations barely distinguish any candidate
+from any other via the `1/rank`-weighted squared log-error), while the prior term's range (`0` to
+`λ·log(pool size)`) never changes regardless of the evidence. At `λ=0.02` — the schedule's
+lowest breakpoint, which this session's zero *informative* (≤300) observations selected — the
+prior still ranges 0..~0.23 over the 86,858-word pool, which turned out to completely swamp fit
+differences that, with every observation hundreds-to-tens-of-thousands of ranks away, had
+shrunk far below that. The ranking degenerated to almost pure corpus-frequency order.
+
+### Why no offline harness caught this
+
+`docs/superpowers/specs/assets/contextno-gold-40x300.json`'s gold lists are capped at each
+secret's own top-300 neighbours (контекстно.рф's `/first-words` endpoint, spec §2.1) —
+`bin/evaluate.ts`'s sweeps, the closed-loop simulator, and `src/benchmark.test.ts`'s regression
+floor can therefore never construct an observation with a claimed rank higher than 300. This
+defect only manifests once observations run far past that — exactly what a real, extended,
+mostly-wrong-guesses session produces and a 300-capped fixture structurally cannot. Every gold
+list being exactly 300 long (verified earlier in this document, "Post-ship defect" section) is
+the same property that made this a blind spot: it is not a coverage gap more gold secrets would
+close, it is a hard ceiling on what rank the fixture can ever produce.
+
+### Fix
+
+Make the prior scale-relative: divide the fit term by its own mean across all candidates before
+adding `λ·log(c+1)`, so `λ` is dimensionless and means the same thing regardless of how close or
+far the evidence is. Guarded for the degenerate cases — zero observations, or a mean that is
+exactly zero or non-finite — by falling back to `scale=1`, i.e. behaving exactly as the
+unnormalised prior did whenever there is nothing sensible to divide by. `priorLambda === 0` (no
+prior at all) skips normalisation entirely, so every pre-existing test asserting a raw,
+un-normalised fit value at `λ=0` needed no change. The per-candidate loop stays allocation-free
+(one extra `Float64Array` pass to sum; no new arrays). `informativeRankLimit`, `exploreThreshold`
+and the shape of the fit term itself (the `1/rank`-weighted squared log-error) are unchanged.
+
+### Live-case reproduction (offline replay of the 59-observation log)
+
+| variant | position of `чайник` | top-8 |
+|---|---|---|
+| shipped at the time (additive prior, λ=0.02 via the then-shipped schedule) | **#1327** | год, человек, время, работа, день, система, компания, место |
+| fixed prior, same λ=0.02 (i.e. schedule still in place) | **#1** | чайник, кипятильник, плитка, кофейник, керогаз, лампа, шифер, лафет |
+| **fixed prior, final shipped config (schedule dropped, λ=0.1 — see below)** | **#3** | плитка, лампа, чайник, ключ, плита, свеча, пол, машина |
+
+Either way the fix ships, the secret moves from #1327 to comfortably inside the top 5.
+
+### New regression test
+
+`src/fit.test.ts`'s `describe('regression: far-only observations must not collapse to pool
+order (live-play defect)')` pins this: a deterministic 2000-word synthetic fixture
+(`farObservationFixture`, seeded `mulberry32(42)`) with pool (frequency) order deliberately
+uncorrelated with the embedding geometry and a secret away from the front of pool order; 8
+observations, each a genuinely far (>40% of the universe) *true* rank of the secret from a
+different probe word's own neighbourhood. Verified to fail against the pre-fix additive-only
+formula: temporarily reverted `scoreCandidates` to the old `out[c] += priorLambda * Math.log(c +
+1)` line, ran `npx vitest run -t 'far-only observations'` — 1 failed, secret position 971 (top-5
+exactly `[0, 1, 2, 3, 4]`, the defect signature) — then restored the fix, 1 passed.
+
+### λ schedule re-check under the scale-relative prior
+
+`priorLambdaSchedule` (0.02 for N≤3, 0.05 for N=4) was calibrated against the *additive*
+prior's low-N swamping problem specifically — the problem the scale-relative fix removes
+structurally. Re-swept from scratch on the TUNING split only (same methodology, same grid,
+same 20/20 split — `npx tsx bin/evaluate.ts --section lambda`, 7m49s for the full four-section
+run this session; see "Commands run" below):
+
+```
+  tune N=1 lambda=0:    median 677, top-10 4%,  top-50 11%
+  tune N=1 lambda=0.02: median 8,   top-10 52%, top-50 61%
+  tune N=1 lambda=0.05: median 4,   top-10 61%, top-50 78%
+  tune N=1 lambda=0.1:  median 5,   top-10 66%, top-50 86%
+  tune N=1 lambda=0.25: median 15,  top-10 41%, top-50 82%
+  tune N=1 lambda=0.5:  median 54,  top-10 13%, top-50 46%
+  tune N=1 lambda=1:    median 149, top-10 10%, top-50 25%
+  tune N=2 lambda=0:    median 76,  top-10 17%, top-50 39%
+  tune N=2 lambda=0.02: median 2,   top-10 73%, top-50 83%
+  tune N=2 lambda=0.05: median 2,   top-10 87%, top-50 94%
+  tune N=2 lambda=0.1:  median 2,   top-10 88%, top-50 96%
+  tune N=2 lambda=0.25: median 10,  top-10 51%, top-50 90%
+  tune N=2 lambda=0.5:  median 51,  top-10 13%, top-50 50%
+  tune N=2 lambda=1:    median 144, top-10 10%, top-50 25%
+  tune N=3 lambda=0:    median 35,  top-10 21%, top-50 56%
+  tune N=3 lambda=0.02: median 2,   top-10 73%, top-50 82%
+  tune N=3 lambda=0.05: median 1,   top-10 85%, top-50 92%
+  tune N=3 lambda=0.1:  median 2,   top-10 90%, top-50 94%
+  tune N=3 lambda=0.25: median 11,  top-10 48%, top-50 92%
+  tune N=3 lambda=0.5:  median 54,  top-10 13%, top-50 46%
+  tune N=3 lambda=1:    median 152, top-10 10%, top-50 25%
+  tune N=4 lambda=0:    median 26,  top-10 35%, top-50 64%
+  tune N=4 lambda=0.02: median 1,   top-10 78%, top-50 84%
+  tune N=4 lambda=0.05: median 1,   top-10 88%, top-50 93%
+  tune N=4 lambda=0.1:  median 1,   top-10 92%, top-50 97%
+  tune N=4 lambda=0.25: median 11,  top-10 50%, top-50 91%
+  tune N=4 lambda=0.5:  median 53,  top-10 14%, top-50 48%
+  tune N=4 lambda=1:    median 145, top-10 10%, top-50 25%
+  tune N=5 lambda=0:    median 17,  top-10 45%, top-50 72%
+  tune N=5 lambda=0.02: median 1,   top-10 87%, top-50 92%
+  tune N=5 lambda=0.05: median 1,   top-10 92%, top-50 98%
+  tune N=5 lambda=0.1:  median 1,   top-10 94%, top-50 98%
+  tune N=5 lambda=0.25: median 10,  top-10 57%, top-50 92%
+  tune N=5 lambda=0.5:  median 50,  top-10 13%, top-50 51%
+  tune N=5 lambda=1:    median 147, top-10 10%, top-50 25%
+  tune N=8 lambda=0:    median 9,   top-10 53%, top-50 83%
+  tune N=8 lambda=0.02: median 1,   top-10 92%, top-50 96%
+  tune N=8 lambda=0.05: median 1,   top-10 97%, top-50 98%
+  tune N=8 lambda=0.1:  median 1,   top-10 94%, top-50 98%
+  tune N=8 lambda=0.25: median 9,   top-10 54%, top-50 92%
+  tune N=8 lambda=0.5:  median 54,  top-10 11%, top-50 47%
+  tune N=8 lambda=1:    median 151, top-10 10%, top-50 25%
+```
+
+The sweep's own mechanical tie-break (lowest tuning median, ties broken by higher tuning top-10)
+nominally "chooses" a schedule of `N≤1→0.05, N≤2→0.1, N≤3→0.05, N≤4→0.1, N≤5→0.1, N≤8→0.05` —
+but unlike the pre-fix sweep (which showed a clean, large, monotonic gap: 0.02 dominant at
+N≤3, ramping to 0.1 by N≥5), this alternates between 0.05 and 0.1 with no consistent direction,
+and the "winners" differ from the runner-up by single-digit percentage points on a 120-sample
+(20 secrets × 6 trials) tuning cell — noise, not a trend, by the same "coarse-grained statistic"
+reasoning the original schedule finding already used to reject an N=5/N=8 tie-break. Reading the
+more robust top-10 metric instead of median: **`λ=0.1` matches or beats every other grid value
+at every N from 1 to 8 except a single 3-point gap at N=8 (94% vs 0.05's 97%, on 120 samples)**;
+`λ=0.02` — the schedule's old low-N value — is now clearly *worse* than `0.1` at every N (e.g.
+N=1: 52% vs 66% top-10; N=2: 73% vs 88%).
+
+**Decision: `priorLambdaSchedule` is dropped entirely; `priorLambda: 0.1` (unchanged) now covers
+every observation count.** The schedule's entire justification — a large, low-N-favours-small-λ
+gap — was a symptom of the additive prior's swamping problem; with that problem structurally
+fixed, the tuning split shows no N in 1..8 where a smaller λ is genuinely better, only
+sampling noise around λ values that are already close together. Selected using **tuning-split
+evidence only**, per the task's own constraint; held-out numbers below were *not* used to choose
+between keeping vs. dropping the schedule.
+
+`src/profile.test.ts`'s "the real shipped dict/assets/profiles.json" test was inverted to match:
+it now asserts `priorLambdaSchedule` is **absent** from the shipped profile (previously it
+asserted the opposite). A second test in the same file confirms `parseProfiles` still validates
+a well-formed schedule correctly, so the mechanism itself (kept in `types.ts`/`fit.ts`/
+`profile.ts` for any future profile that does need one) is not dead code.
+
+### Held-out one-shot benchmark, corrected (replaces the stale table above)
+
+Same tune/held-out split (20/20, alphabetical), same `positions()` methodology, now at the final
+shipped flat `priorLambda=0.1` for every N:
+
+| Guesses ranked ≤300 | held-out median | held-out top-10 | held-out top-50 | (previous, pre-fix) |
+|---|---|---|---|---|
+| 1  | 9 | 55%  | 79%  | — (not previously reported) |
+| 2  | 3 | 85%  | 98%  | — (not previously reported) |
+| 3  | 2 | 93%  | 99%  | — (not previously reported) |
+| 4  | 1 | 94%  | 99%  | — (not previously reported) |
+| 5  | **1** | **98%**  | 100% | median 1, 89% top-10 |
+| 8  | **1** | **98%**  | 100% | median 1, 89% top-10 |
+| 12 | **1** | **100%** | 100% | 94% top-10 |
+| 20 | **1** | **100%** | 100% | 96% top-10 |
+
+**Every N=5/8/12/20 row improved; nothing regressed.** (N=1..4 were not part of the original
+schedule-era headline table, so there is no "previous" column to compare them against — they are
+reported here for completeness now that the schedule that used to cover them is gone.)
+
+### Closed-loop simulation, corrected (replaces the stale table above)
+
+`npx tsx bin/evaluate.ts --section closed-loop` against the final shipped profile (flat
+`priorLambda=0.1`, no schedule; `exploreThreshold=500`, reconfirmed unchanged below):
+
+```
+30/40 solved (median 26 turns, min 9, max 84); 10 never solved (9 of which never got a guess in
+the secret's top-300); 30/40 ever entered exploit (median turn 26); median 2 informative
+observations held at solve time.
+
+never solved: деньги, дерево, железо, король, кот, окно, рыба, смех, стол, цветок
+```
+
+Compared to the pre-fix baseline (30/40 solved, median 29 — see "Closed-loop simulation" above):
+**same solve count, ~10% faster median (29→26).** No regression.
+
+**A trade-off worth stating plainly, not hiding, per the task's own instruction:** while the
+`priorLambdaSchedule` was still in place (fixed prior + the *old*, not-yet-dropped 0.02/0.05
+schedule), the very same closed-loop run measured **31/40 solved, median 27** — one *more*
+secret solved (`деньги`) than the final no-schedule config, at the cost of a one-turn-higher
+median. This is exactly the situation the task warns against chasing: the closed-loop simulator
+runs over all 40 secrets (not the tune/held-out split), so using it to decide "keep the schedule
+after all" would be selecting on held-out-flavoured evidence, which the task's instructions
+explicitly rule out. The schedule-drop decision above was made from the tuning-split one-shot
+sweep alone; this closed-loop number is reported as an honest downstream consequence of that
+decision, not used to second-guess it. Both configurations solve the same or more secrets than
+the pre-fix baseline (30 or 31, vs. 30) with a faster median (26 or 27, vs. 29) — there is no
+version of this fix that regresses the closed-loop headline.
+
+`exploreThreshold`: the same full run's `--section threshold` sweep reconfirmed the existing
+decision is still correct under the new fit formula — the tuning split nominally ties at 300
+(15/20 solved, median 27) vs. the shipped 500, and the held-out tie-break is now an exact draw
+(both 500 and the tune-selected 300 solve 14/20, median 26, entering exploit at the same median
+turn) — so **`exploreThreshold: 500` is kept, unchanged**, exactly as before. This was not
+required by the task (only the λ schedule was in scope for re-checking) but fell out for free
+from running the full `bin/evaluate.ts`.
+
 ## Regression floor
 
 `src/benchmark.test.ts` guards against silent regressions in the core scoring path,
@@ -434,15 +653,18 @@ and checks the true answer lands in the top 10 at N=8 observations. `priorLambda
 profile) rather than hardcoded, so the floor always tracks whatever the product
 actually ships.
 
-Measured at the shipped **λ=0.1**: **31/40 = 77.5%**. (An earlier version of this test
-hardcoded λ=0.25 — the value in-sample-selected before Task 9's held-out sweep chose
-0.1 — and measured 35/40 = 87.5% at that stale λ; that figure no longer describes what
-ships and should not be quoted for the current configuration.) `FLOOR` is set to `65`
-— below the measured 77.5%, with headroom for asset/scoring drift (dictionary rebuild,
-scoring-constant changes, or a future `priorLambda` re-calibration) rather than
-run-to-run noise, since this particular loop has no RNG and is otherwise perfectly
-reproducible. If `priorLambda` changes again, re-measure and update this section,
-`FLOOR`, and the comment in `src/benchmark.test.ts` together.
+**Updated by the scale-relative-prior fix (see "Live-play defect" above): measured at the
+shipped λ=0.1, post-fix, 39/40 = 97.5%** (was 31/40 = 77.5% pre-fix at the same λ — this test
+calls `scoreCandidates` directly with the shipped `priorLambda`, so it exercises the fixed
+normalisation even though it never goes through `resolvePriorLambda`/the now-removed
+`priorLambdaSchedule`). `FLOOR` was raised from `65` to `90` — below the measured 97.5%, with
+headroom for asset/scoring drift (dictionary rebuild, scoring-constant changes, or a future
+`priorLambda` re-calibration) rather than run-to-run noise, since this particular loop has no
+RNG and is otherwise perfectly reproducible. (An earlier version of this test hardcoded λ=0.25
+— the value in-sample-selected before Task 9's held-out sweep chose 0.1 — and measured 35/40 =
+87.5% at that stale λ; that figure no longer describes what ships either.) If `priorLambda`
+changes again, re-measure and update this section, `FLOOR`, and the comment in
+`src/benchmark.test.ts` together.
 
 The test is wrapped in `describe.runIf(existsSync(ASSET))` so CI, which does not build
 the 27.5 MB `ru.vec.bin` asset, skips this test instead of failing. Verified directly:
@@ -488,3 +710,26 @@ pointing `ASSET` at a nonexistent path made the suite report `1 skipped` in 165m
 | `npm run typecheck --workspaces` (repo root) | clean, all 3 packages |
 | `npx tsx bin/evaluate.ts` (full re-run, all four sections; confirms lambda/held-out numbers bit-exact, closed-loop bit-exact — see "Post-ship defect" section above) | 6m53s |
 | `npx tsx bin/solve-semantic.ts` on the demo case (`снег 206, ручей 272, вода 299, влага 322, дождь 811`) | instant; `трава` at #5 (was #158 under the bug) |
+
+## Commands run (this session: scale-relative-prior fix for the live-play defect)
+
+| command | wall-clock |
+|---|---|
+| offline replay of `.superpowers/sdd/live-chainik-59obs.log` against the pre-fix code (baseline reproduction) | instant; `чайник` #1327, confirmed against the task's own reported figure |
+| `npx vitest run` (fast suite, pre-fix baseline) | 272ms, 124 passed |
+| offline replay against the fixed `scoreCandidates` | instant; `чайник` #1 at λ=0.02 (schedule still in place at that point) |
+| `npx vitest run` (fast suite, immediately after the `fit.ts` fix, before touching `fit.test.ts`) | 317ms, 3 failed (the 3 pre-existing assertions hardcoding additive-prior arithmetic) |
+| `npx vitest run src/fit.test.ts` (after recomputing and correcting those 3 assertions for the normalised-prior arithmetic) | 191ms, 13 passed |
+| `npx vitest run -t 'far-only observations'` with `scoreCandidates` temporarily reverted to the additive-only formula (verifies the new regression test fails against the pre-fix code) | 1 failed, secret position 971, as expected |
+| `npx vitest run -t 'far-only observations'` restored | 1 passed |
+| `npx vitest run` (fast suite, fix + regression test in place) | 292ms, 125 passed |
+| `npx tsc --noEmit` | ~0.3s |
+| `npx vitest run --config vitest.benchmark.config.ts` (regression floor, before updating `FLOOR`) | 14.98s, 1 passed (97.5%, comfortably above the stale `FLOOR=65`) |
+| `npx tsx bin/evaluate.ts` (full four-section run, fixed prior, schedule still shipped — used to gather the λ re-sweep evidence) | 7m49s |
+| `npx vitest run` (fast suite, after dropping `priorLambdaSchedule` from `dict/assets/profiles.json` and updating `src/profile.test.ts`) | 295ms, 126 passed |
+| `npx vitest run --config vitest.benchmark.config.ts` (after the schedule drop — floor test bypasses `resolvePriorLambda` entirely, so unaffected: still 97.5%) | 15.08s, 1 passed |
+| `npx tsx bin/evaluate.ts --section closed-loop` (final shipped profile: flat λ=0.1, no schedule) | 19.8s; 30/40 solved, median 26 |
+| ad hoc script replicating `bin/evaluate.ts`'s `positions()`/tune-held-out split for held-out N=1..4 at flat λ=0.1 (N=5/8/12/20 already covered by the full run's headline block) | 45s |
+| `npx vitest run` (fast suite, final) | 345ms, 126 passed |
+| `npx tsc --noEmit` (final) | clean |
+| `npm run typecheck --workspaces` (repo root, final) | clean, all 3 packages |

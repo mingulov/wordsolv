@@ -146,6 +146,21 @@ if (sections.has('lambda')) {
   for (const { n, lambda } of schedule) {
     console.log(`  HELD-OUT N=${n} (lambda=${lambda}): ${summarise(positions(heldOut, n, lambda))}`)
   }
+
+  // Headline table (BENCHMARKS.md's "Held-out headline"): N=5,8,12,20 at the flat, shipped
+  // base priorLambda from profiles.json. Loaded directly here (rather than via
+  // loadProfileAndLadder, whose module-scope `let` caches are still in their temporal dead
+  // zone this early in the file) since only the base lambda is needed, not the ladder. N=5/8
+  // overlap the schedule sweep above by construction (the schedule stops at N=4; priorLambda
+  // covers every higher N unchanged) but are reprinted here alongside N=12/20 so the whole
+  // headline row set comes from one place.
+  console.log('\nheld-out headline (N=5,8,12,20 at the base priorLambda, unaffected by the schedule):')
+  const headlineProfiles = parseProfiles(readFileSync(join(HERE, 'dict/assets/profiles.json'), 'utf8'))
+  const headlineProfile = headlineProfiles.get('contextno-ru')
+  if (!headlineProfile) throw new Error('contextno-ru profile missing from dict/assets/profiles.json')
+  for (const n of [5, 8, 12, 20]) {
+    console.log(`  HELD-OUT N=${n} (lambda=${headlineProfile.priorLambda}): ${summarise(positions(heldOut, n, headlineProfile.priorLambda))}`)
+  }
 }
 
 // ---------------------------------------------------------------------------

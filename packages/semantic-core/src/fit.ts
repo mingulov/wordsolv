@@ -13,6 +13,23 @@ export interface FitObservation {
  * Loss per candidate: squared log-rank error weighted by 1/rank, plus a
  * frequency prior. Lower is better. See spec §6.1 — the 1/rank weighting is
  * load-bearing, not a tuning detail.
+ *
+ * **The prior is scale-relative, not a fixed additive term.** The fit term's
+ * magnitude varies enormously with how close the observations are to the
+ * secret: near observations spread candidates over a wide range of loss, far
+ * ones compress nearly every candidate to almost the same (small) loss. A
+ * fixed-magnitude `priorLambda * log(c+1)` that is well-calibrated against
+ * near evidence completely swamps the fit once evidence is far — this was a
+ * live defect (a real 59-guess session, every observation ranked 815..18822,
+ * put the true secret at #1327 instead of top-8; see BENCHMARKS.md's
+ * "live-play defect" section). The fix divides the fit term by its own mean
+ * across all candidates before adding the prior, so `priorLambda` is
+ * dimensionless and means the same thing regardless of the evidence's scale.
+ * Guarded for the degenerate cases where there is nothing sensible to divide
+ * by (zero observations, or a mean that is exactly zero or non-finite) by
+ * falling back to scale=1, i.e. behaving exactly as the unnormalised prior
+ * did — this is also why `priorLambda === 0` (no prior at all) skips
+ * normalisation entirely and returns the raw fit term unchanged.
  */
 export function scoreCandidates(
   vs: VectorSet,
@@ -34,7 +51,11 @@ export function scoreCandidates(
   }
 
   if (priorLambda !== 0) {
-    for (let c = 0; c < count; c++) out[c] += priorLambda * Math.log(c + 1)
+    let sum = 0
+    for (let c = 0; c < count; c++) sum += out[c]
+    const mean = sum / count
+    const scale = Number.isFinite(mean) && mean > 0 ? mean : 1
+    for (let c = 0; c < count; c++) out[c] = out[c] / scale + priorLambda * Math.log(c + 1)
   }
   return out
 }
