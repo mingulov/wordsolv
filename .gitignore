@@ -9,5 +9,8 @@ apps/web/test-results/
 apps/web/playwright-report/
 .playwright-mcp/
 packages/semantic-core/dict/raw/
-packages/semantic-core/dict/assets/ru.vec.bin
-packages/semantic-core/dict/assets/ru.probes.json
+# ru.vec.bin (27.5 MB) and ru.probes.json are COMMITTED, not generated at build
+# time: CI has no 192 MB araneum download, so an ignored asset would ship a
+# semantic screen that 404s. Regeneration is byte-identical for a given input,
+# but the blob does not delta-compress — each regeneration adds ~23 MB to the
+# pack forever. Regenerate only when the lexicon or scoring actually changes.
