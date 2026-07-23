@@ -29,6 +29,6 @@ if (existsSync(semDict)) {
   console.log(`copied ${m} semantic assets to public/semantic/`)
 } else {
   console.warn(
-    'semantic-core assets missing — run: npx tsx bin/build-vectors.ts && npx tsx bin/build-probes.ts (from packages/semantic-core)',
+    'semantic-core assets missing — run: npm run semantic:vectors && npm run semantic:probes (from the repo root)',
   )
 }
