@@ -10,6 +10,7 @@
     "solve": "npm exec -w @wordsolv/solver-core tsx bin/solve.ts --",
     "semantic:vectors": "npm exec -w @wordsolv/semantic-core tsx bin/build-vectors.ts",
     "semantic:probes": "npm exec -w @wordsolv/semantic-core tsx bin/build-probes.ts",
+    "solve-semantic": "npm exec -w @wordsolv/semantic-core tsx bin/solve-semantic.ts --",
     "dev": "npm run dev -w @wordsolv/web",
     "build": "npm run build -w @wordsolv/web"
   }
