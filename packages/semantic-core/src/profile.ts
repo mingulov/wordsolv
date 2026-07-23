@@ -20,6 +20,10 @@ export function parseProfiles(json: string): Map<string, ProviderProfile> {
     const lex = p.lexicon
     if (!lex || (lex.pos !== 'noun' && lex.pos !== 'any'))
       throw new Error(`profile "${p.id}": lexicon.pos must be noun or any`)
+    if (typeof lex.lemmaOnly !== 'boolean')
+      throw new Error(`profile "${p.id}": lexicon.lemmaOnly must be a boolean`)
+    if (typeof lex.foldYo !== 'boolean')
+      throw new Error(`profile "${p.id}": lexicon.foldYo must be a boolean`)
     out.set(p.id, p as ProviderProfile)
   }
   return out
