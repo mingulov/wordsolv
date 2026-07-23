@@ -1,0 +1,62 @@
+  1. условие          [probe] rank= 15099  best= 15099  explore
+  2. дата             [probe] rank= 11887  best= 11887  explore
+  3. совет            [probe] rank= 20047  best= 11887  explore
+  4. посетитель       [probe] rank=  8703  best=  8703  explore
+  5. линейка          [probe] rank= 12279  best=  8703  explore
+  6. тело             [probe] rank=  9884  best=  8703  explore
+  7. колодец          [probe] rank=  4377  best=  4377  explore
+  8. мечта            [probe] rank=  6596  best=  4377  explore
+  9. хлеб             [probe] rank=  6301  best=  4377  explore
+ 10. обстрел          [probe] rank=   624  best=   624  explore
+ 11. речь             [probe] rank= 10526  best=   624  explore
+ 12. миллиард         [probe] rank= 15408  best=   624  explore
+ 13. акрил            [probe] REJECTED
+ 14. диагноз          [probe] rank= 14676  best=   624  explore
+ 15. брат             [probe] rank= 14962  best=   624  explore
+ 16. финал            [probe] rank=  2508  best=   624  explore
+ 17. орел             [probe] rank=  4084  best=   624  explore
+ 18. сдвиг            [probe] rank=  2124  best=   624  explore
+ 19. грузчик          [probe] rank= 10376  best=   624  explore
+ 20. шляпа            [probe] rank=  6918  best=   624  explore
+ 21. средневековье    [probe] rank=  6198  best=   624  explore
+ 22. бета             [probe] rank= 20265  best=   624  explore
+ 23. двигатель        [probe] rank=  5154  best=   624  explore
+ 24. доверие          [probe] rank= 20851  best=   624  explore
+ 25. побережье        [probe] rank=  1358  best=   624  explore
+ 26. кафедра          [probe] rank= 17948  best=   624  explore
+ 27. корень           [probe] rank= 15226  best=   624  explore
+ 28. радио            [probe] rank=  7450  best=   624  explore
+ 29. проверка         [probe] rank= 14011  best=   624  explore
+ 30. холод            [probe] rank=    48  best=    48  explore
+ 31. вода             [fit  ] rank=  1838  best=    48  exploit
+ 32. время            [fit  ] rank=  7381  best=    48  exploit
+ 33. температура      [fit  ] rank=   461  best=    48  exploit
+ 34. ночь             [fit  ] rank=    74  best=    48  exploit
+ 35. день             [fit  ] rank=  3505  best=    48  exploit
+ 36. ветер            [fit  ] rank=    10  best=    10  exploit
+ 37. воздух           [fit  ] rank=   723  best=    10  exploit
+ 38. солнце           [fit  ] rank=   152  best=    10  exploit
+ 39. дождь            [fit  ] rank=    14  best=    10  exploit
+ 40. погода           [fit  ] rank=    61  best=    10  exploit
+ 41. снег             [fit  ] rank=     8  best=     8  exploit
+ 42. зима             [fit  ] rank=    37  best=     8  exploit
+ 43. мороз            [fit  ] rank=    13  best=     8  exploit
+ 44. лед              [fit  ] rank=   109  best=     8  exploit
+ 45. лето             [fit  ] rank=   596  best=     8  exploit
+ 46. туман            [fit  ] rank=    36  best=     8  exploit
+ 47. лес              [fit  ] rank=   176  best=     8  exploit
+ 48. гора             [fit  ] rank=   502  best=     8  exploit
+ 49. осадки           [fit  ] rank=    65  best=     8  exploit
+ 50. утро             [fit  ] rank=   552  best=     8  exploit
+ 51. жара             [fit  ] rank=    84  best=     8  exploit
+ 52. море             [fit  ] rank=   679  best=     8  exploit
+ 53. год              [fit  ] rank= 11226  best=     8  exploit
+ 54. пыль             [fit  ] rank=   118  best=     8  exploit
+ 55. снегопад         [fit  ] rank=     5  best=     5  exploit
+ 56. город            [fit  ] rank=  2968  best=     5  exploit
+ 57. дорога           [fit  ] rank=   880  best=     5  exploit
+ 58. весна            [fit  ] rank=   162  best=     5  exploit
+ 59. непогода         [fit  ] rank=    16  best=     5  exploit
+ 60. вечер            [fit  ] rank=   599  best=     5  exploit
+
+NOT solved in 60. best=5

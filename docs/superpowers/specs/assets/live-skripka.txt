@@ -1,0 +1,60 @@
+  1. условие          [probe] rank= 11921  best= 11921  explore
+  2. дата             [probe] rank= 19312  best= 11921  explore
+  3. совет            [probe] rank= 15478  best= 11921  explore
+  4. посетитель       [probe] rank= 17514  best= 11921  explore
+  5. линейка          [probe] rank=   890  best=   890  explore
+  6. тело             [probe] rank= 10267  best=   890  explore
+  7. колодец          [probe] rank= 13117  best=   890  explore
+  8. мечта            [probe] rank=  3185  best=   890  explore
+  9. хлеб             [probe] rank=  4516  best=   890  explore
+ 10. обстрел          [probe] rank= 16860  best=   890  explore
+ 11. речь             [probe] rank=  6699  best=   890  explore
+ 12. миллиард         [probe] rank=  8550  best=   890  explore
+ 13. акрил            [probe] REJECTED
+ 14. диагноз          [probe] rank= 15997  best=   890  explore
+ 15. брат             [probe] rank=  5663  best=   890  explore
+ 16. финал            [probe] rank=  2225  best=   890  explore
+ 17. орел             [probe] rank= 12693  best=   890  explore
+ 18. сдвиг            [probe] rank= 20451  best=   890  explore
+ 19. грузчик          [probe] rank=  4944  best=   890  explore
+ 20. шляпа            [probe] rank=  1500  best=   890  explore
+ 21. средневековье    [probe] rank= 12394  best=   890  explore
+ 22. бета             [probe] rank= 13797  best=   890  explore
+ 23. двигатель        [probe] rank=  2796  best=   890  explore
+ 24. доверие          [probe] rank= 18585  best=   890  explore
+ 25. побережье        [probe] rank= 16767  best=   890  explore
+ 26. кафедра          [probe] rank= 12711  best=   890  explore
+ 27. корень           [probe] rank= 12279  best=   890  explore
+ 28. радио            [probe] rank=   654  best=   654  explore
+ 29. проверка         [probe] rank= 19092  best=   654  explore
+ 30. холод            [probe] rank= 10080  best=   654  explore
+ 31. толк             [probe] rank= 10046  best=   654  explore
+ 32. святитель        [probe] rank= 11961  best=   654  explore
+ 33. поводок          [probe] rank=  5563  best=   654  explore
+ 34. ракурс           [probe] rank= 15833  best=   654  explore
+ 35. метро            [probe] rank= 13182  best=   654  explore
+ 36. мигрант          [probe] rank= 19304  best=   654  explore
+ 37. массаж           [probe] rank=  5169  best=   654  explore
+ 38. вред             [probe] rank= 20251  best=   654  explore
+ 39. вкладка          [probe] rank= 14009  best=   654  explore
+ 40. прима            [probe] rank=  1139  best=   654  explore
+ 41. год              [fit  ] rank=  9591  best=   654  explore
+ 42. программа        [fit  ] rank=  3995  best=   654  explore
+ 43. книга            [fit  ] rank=   910  best=   654  explore
+ 44. слово            [fit  ] rank=  6460  best=   654  explore
+ 45. сайт             [fit  ] rank= 20244  best=   654  explore
+ 46. мир              [fit  ] rank=  6329  best=   654  explore
+ 47. день             [fit  ] rank=  8221  best=   654  explore
+ 48. видео            [fit  ] rank=  6734  best=   654  explore
+ 49. дом              [fit  ] rank=  9336  best=   654  explore
+ 50. гитара           [fit  ] rank=     8  best=     8  explore
+ 51. музыка           [fit  ] rank=    69  best=     8  exploit
+ 52. песня            [fit  ] rank=   149  best=     8  exploit
+ 53. инструмент       [fit  ] rank=    45  best=     8  exploit
+ 54. музыкант         [fit  ] rank=    49  best=     8  exploit
+ 55. оркестр          [fit  ] rank=    29  best=     8  exploit
+ 56. концерт          [fit  ] rank=   210  best=     8  exploit
+ 57. звук             [fit  ] rank=   361  best=     8  exploit
+ 58. скрипка          [fit  ] rank=     1  best=     1  exploit
+
+SOLVED in 58 guesses.

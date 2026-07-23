@@ -1,0 +1,62 @@
+  1. условие            [probe] rank= 14686  best= 14686  regime=explore  informative=0
+  2. дата               [probe] rank= 14054  best= 14054  regime=explore  informative=0
+  3. совет              [probe] rank= 17067  best= 14054  regime=explore  informative=0
+  4. посетитель         [probe] rank=  9247  best=  9247  regime=explore  informative=0
+  5. линейка            [probe] rank=  5574  best=  5574  regime=explore  informative=0
+  6. тело               [probe] rank= 13820  best=  5574  regime=explore  informative=0
+  7. колодец            [probe] rank=   815  best=   815  regime=explore  informative=0
+  8. мечта              [probe] rank= 13322  best=   815  regime=explore  informative=0
+  9. хлеб               [probe] rank=  2399  best=   815  regime=explore  informative=0
+ 10. обстрел            [probe] rank= 17954  best=   815  regime=explore  informative=0
+ 11. речь               [probe] rank= 13291  best=   815  regime=explore  informative=0
+ 12. миллиард           [probe] rank= 10135  best=   815  regime=explore  informative=0
+ 13. акрил              [probe] REJECTED by provider
+ 14. диагноз            [probe] rank=  8074  best=   815  regime=explore  informative=0
+ 15. брат               [probe] rank=  9913  best=   815  regime=explore  informative=0
+ 16. финал              [probe] rank= 16264  best=   815  regime=explore  informative=0
+ 17. орел               [probe] rank= 10667  best=   815  regime=explore  informative=0
+ 18. сдвиг              [probe] rank= 15789  best=   815  regime=explore  informative=0
+ 19. грузчик            [probe] rank=  6086  best=   815  regime=explore  informative=0
+ 20. шляпа              [probe] rank=  2016  best=   815  regime=explore  informative=0
+ 21. средневековье      [probe] rank= 17055  best=   815  regime=explore  informative=0
+ 22. бета               [probe] rank= 10308  best=   815  regime=explore  informative=0
+ 23. двигатель          [probe] rank=  1088  best=   815  regime=explore  informative=0
+ 24. доверие            [probe] rank= 18400  best=   815  regime=explore  informative=0
+ 25. побережье          [probe] rank= 11439  best=   815  regime=explore  informative=0
+ 26. кафедра            [probe] rank=  6801  best=   815  regime=explore  informative=0
+ 27. корень             [probe] rank= 16847  best=   815  regime=explore  informative=0
+ 28. радио              [probe] rank=  2112  best=   815  regime=explore  informative=0
+ 29. проверка           [probe] rank=  9094  best=   815  regime=explore  informative=0
+ 30. холод              [probe] rank=  6043  best=   815  regime=explore  informative=0
+ 31. толк               [probe] rank=  9678  best=   815  regime=explore  informative=0
+ 32. святитель          [probe] rank= 18731  best=   815  regime=explore  informative=0
+ 33. поводок            [probe] rank=  6150  best=   815  regime=explore  informative=0
+ 34. ракурс             [probe] rank= 15350  best=   815  regime=explore  informative=0
+ 35. метро              [probe] rank=  7949  best=   815  regime=explore  informative=0
+ 36. мигрант            [probe] rank= 17455  best=   815  regime=explore  informative=0
+ 37. массаж             [probe] rank=  4538  best=   815  regime=explore  informative=0
+ 38. вред               [probe] rank= 11835  best=   815  regime=explore  informative=0
+ 39. вкладка            [probe] rank=  7582  best=   815  regime=explore  informative=0
+ 40. прима              [probe] rank=  9054  best=   815  regime=explore  informative=0
+ 41. год                [fit  ] rank= 14953  best=   815  regime=explore  informative=0
+ 42. человек            [fit  ] rank= 13715  best=   815  regime=explore  informative=0
+ 43. время              [fit  ] rank= 13136  best=   815  regime=explore  informative=0
+ 44. работа             [fit  ] rank=  5945  best=   815  regime=explore  informative=0
+ 45. день               [fit  ] rank= 16119  best=   815  regime=explore  informative=0
+ 46. компания           [fit  ] rank=  8864  best=   815  regime=explore  informative=0
+ 47. система            [fit  ] rank= 17582  best=   815  regime=explore  informative=0
+ 48. место              [fit  ] rank= 12190  best=   815  regime=explore  informative=0
+ 49. ребенок            [fit  ] rank= 10940  best=   815  regime=explore  informative=0
+ 50. дом                [fit  ] rank=  3798  best=   815  regime=explore  informative=0
+ 51. вид                [fit  ] rank= 11662  best=   815  regime=explore  informative=0
+ 52. жизнь              [fit  ] rank= 14488  best=   815  regime=explore  informative=0
+ 53. вопрос             [fit  ] rank=  8369  best=   815  regime=explore  informative=0
+ 54. город              [fit  ] rank= 15047  best=   815  regime=explore  informative=0
+ 55. сайт               [fit  ] rank= 15475  best=   815  regime=explore  informative=0
+ 56. случай             [fit  ] rank= 16452  best=   815  regime=explore  informative=0
+ 57. дело               [fit  ] rank= 17049  best=   815  regime=explore  informative=0
+ 58. помощь             [fit  ] rank= 17559  best=   815  regime=explore  informative=0
+ 59. часть              [fit  ] rank= 17884  best=   815  regime=explore  informative=0
+ 60. страна             [fit  ] rank= 18822  best=   815  regime=explore  informative=0
+
+NOT solved in 60 guesses. best rank reached: 815
