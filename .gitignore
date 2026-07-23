@@ -6,3 +6,4 @@ coverage/
 apps/web/public/dict/
 apps/web/test-results/
 apps/web/playwright-report/
+.playwright-mcp/
