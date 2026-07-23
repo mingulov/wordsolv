@@ -1,6 +1,9 @@
 import type { JSX } from 'react'
 import { useEffect, useState } from 'react'
-import { normalizeWord, parsePaste, serializeState, type Observation, type SemanticState } from '@wordsolv/semantic-core'
+import {
+  newSemanticState, normalizeWord, parsePaste, serializeState,
+  type Observation, type SemanticState,
+} from '@wordsolv/semantic-core'
 import { useI18n } from '../i18n'
 import { loadSemanticSession, saveSemanticSession } from '../state/semanticSession'
 import { useSemanticSolver } from '../worker/useSemanticSolver'
@@ -22,6 +25,7 @@ export function SemanticScreen({ onExit }: { onExit: () => void }): JSX.Element 
   const [formError, setFormError] = useState<string | null>(null)
   const [pasteText, setPasteText] = useState('')
   const [pasteWarnings, setPasteWarnings] = useState<string[]>([])
+  const [confirmingNew, setConfirmingNew] = useState(false)
 
   const { result, busy, error } = useSemanticSolver(session, SUGGEST_LIMIT)
 
@@ -89,11 +93,35 @@ export function SemanticScreen({ onExit }: { onExit: () => void }): JSX.Element 
   const solved = result?.bestRank === 1
   const exported = serializeState(session)
 
+  /** Clearing throws away guesses the user paid for, so an in-progress game asks
+   * once. An empty board resets straight away — there is nothing to lose. */
+  const startNewGame = (): void => {
+    if (session.observations.length + session.rejected.length > 0 && !confirmingNew) {
+      setConfirmingNew(true)
+      return
+    }
+    setSession(newSemanticState(session.providerId))
+    setWord('')
+    setRank('')
+    setFormError(null)
+    setPasteText('')
+    setPasteWarnings([])
+    setConfirmingNew(false)
+  }
+
   return (
     <div className="screen semantic">
       <div className="row">
         <button data-testid="semantic-back" onClick={onExit}>← {t('semantic.back')}</button>
         <h1 style={{ flex: 1 }}>{t('semantic.title')}</h1>
+        <button data-testid="semantic-new" onClick={startNewGame}>
+          {confirmingNew ? t('semantic.newConfirm') : t('semantic.new')}
+        </button>
+        {confirmingNew && (
+          <button data-testid="semantic-new-cancel" onClick={() => setConfirmingNew(false)}>
+            {t('semantic.cancel')}
+          </button>
+        )}
       </div>
 
       {error && <p className="banner error">{error}</p>}

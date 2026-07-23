@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { SemanticScreen } from './SemanticScreen'
@@ -97,5 +97,56 @@ describe('SemanticScreen', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
     expect(screen.queryAllByTestId('guess-row')).toHaveLength(0)
+  })
+
+  it('starts a new game immediately when the board is empty', async () => {
+    view()
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    await waitFor(() => expect(screen.queryAllByTestId('guess-row')).toHaveLength(0))
+    // no confirmation step when there is nothing to lose
+    expect(screen.queryByTestId('semantic-new-cancel')).toBeNull()
+  })
+
+  it('asks before discarding a game in progress, and does not clear on the first click', async () => {
+    view()
+    fireEvent.change(screen.getByLabelText(/слово/i), { target: { value: 'снег' } })
+    fireEvent.change(screen.getByLabelText(/ранг|номер/i), { target: { value: '206' } })
+    fireEvent.click(screen.getByRole('button', { name: /добав/i }))
+    await waitFor(() => expect(screen.getAllByTestId('guess-row')).toHaveLength(1))
+
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    // still there — one click must not destroy the session
+    expect(screen.getAllByTestId('guess-row')).toHaveLength(1)
+    expect(screen.getByTestId('semantic-new-cancel')).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    await waitFor(() => expect(screen.queryAllByTestId('guess-row')).toHaveLength(0))
+  })
+
+  it('cancelling the confirmation keeps the game', async () => {
+    view()
+    fireEvent.change(screen.getByLabelText(/слово/i), { target: { value: 'снег' } })
+    fireEvent.change(screen.getByLabelText(/ранг|номер/i), { target: { value: '206' } })
+    fireEvent.click(screen.getByRole('button', { name: /добав/i }))
+    await waitFor(() => expect(screen.getAllByTestId('guess-row')).toHaveLength(1))
+
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    fireEvent.click(screen.getByTestId('semantic-new-cancel'))
+    expect(screen.getAllByTestId('guess-row')).toHaveLength(1)
+    expect(screen.queryByTestId('semantic-new-cancel')).toBeNull()
+  })
+
+  it('a new game does not come back after a reload', async () => {
+    view()
+    fireEvent.change(screen.getByLabelText(/слово/i), { target: { value: 'снег' } })
+    fireEvent.change(screen.getByLabelText(/ранг|номер/i), { target: { value: '206' } })
+    fireEvent.click(screen.getByRole('button', { name: /добав/i }))
+    await waitFor(() => expect(screen.getAllByTestId('guess-row')).toHaveLength(1))
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    fireEvent.click(screen.getByTestId('semantic-new'))
+    await waitFor(() => expect(screen.queryAllByTestId('guess-row')).toHaveLength(0))
+    cleanup()
+    view()   // remount reads localStorage again
+    await waitFor(() => expect(screen.queryAllByTestId('guess-row')).toHaveLength(0))
   })
 })

@@ -101,6 +101,9 @@ export const ru: Record<MsgKey, string> = {
   'semantic.pasteIgnored': 'Пропущено строк без догадки: {n}',
   'semantic.export': 'Экспорт',
   'semantic.back': 'Игры',
+  'semantic.new': 'Новая игра',
+  'semantic.newConfirm': 'Очистить всё?',
+  'semantic.cancel': 'Отмена',
   'semantic.errRank': 'Номер должен быть целым числом не меньше 1',
   'semantic.errDuplicate': 'Это слово уже добавлено или отклонено',
 }

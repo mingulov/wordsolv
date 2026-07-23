@@ -99,6 +99,9 @@ export const en = {
   'semantic.pasteIgnored': '{n} non-guess lines ignored',
   'semantic.export': 'Export',
   'semantic.back': 'Games',
+  'semantic.new': 'New game',
+  'semantic.newConfirm': 'Clear everything?',
+  'semantic.cancel': 'Cancel',
   'semantic.errRank': 'Rank must be a whole number of 1 or more',
   'semantic.errDuplicate': 'This word was already guessed or rejected',
 } as const
