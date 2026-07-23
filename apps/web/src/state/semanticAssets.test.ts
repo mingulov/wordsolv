@@ -12,6 +12,7 @@ describe('semanticAssetUrls', () => {
     expect(u.vectors).toMatch(/ru\.vec\.bin$/)
     expect(u.probes).toMatch(/ru\.probes\.json$/)
     expect(u.profiles).toMatch(/profiles\.json$/)
+    expect(u.suggestable).toMatch(/ru\.suggestable\.bin$/)
   })
 
   it('never yields a double slash', () => {
@@ -30,6 +31,7 @@ describe('semanticAssetUrls', () => {
         expect(url.startsWith('/wordsolv/')).toBe(true)
       }
       expect(u.vectors).toBe('/wordsolv/semantic/ru.vec.bin')
+      expect(u.suggestable).toBe('/wordsolv/semantic/ru.suggestable.bin')
     })
   })
 })

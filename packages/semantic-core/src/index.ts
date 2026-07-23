@@ -16,3 +16,6 @@ export {
 export { suggest, type SuggestInput } from './suggest'
 export { parsePaste, serializeState, type ParsedPaste } from './gamefile'
 export { mulberry32 } from './random'
+export {
+  SUGGESTABLE_ASSET_VERSION, isSuggestable, parseSuggestable, type SuggestableMask,
+} from './suggestable'

@@ -2,8 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { rankCandidates, scoreCandidates } from './fit'
 import { RankCache } from './ranks'
 import { suggest } from './suggest'
-import { parseVectors, serializeVectors } from './vectors'
+import type { SuggestableMask } from './suggestable'
+import { parseVectors, serializeVectors, type VectorSet } from './vectors'
 import type { ProviderProfile, SemanticState } from './types'
+
+/** A mask where every pool word is suggestable except the ones named in `suppress`. */
+function maskSuppressing(vectors: VectorSet, suppress: string[]): SuggestableMask {
+  const count = vectors.words.length
+  const bits = new Uint8Array(Math.ceil(count / 8)).fill(0xff)
+  for (const word of suppress) {
+    const index = vectors.index.get(word)!
+    bits[index >> 3] &= ~(1 << (index & 7))
+  }
+  return { dictHash: vectors.hash, count, bits }
+}
 
 function pool(): ReturnType<typeof parseVectors> {
   const words = ['w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7']
@@ -257,6 +269,95 @@ describe('suggest', () => {
     expect(r.suggestions.map((sg) => sg.word)).toEqual(expectedWords)
     r.suggestions.forEach((sg, i) => {
       expect(sg.score).toBeCloseTo(expectedScores[expectedOrder[i]], 10)
+    })
+  })
+
+  describe('suggestable mask', () => {
+    it('removes a suppressed word from fit suggestions, while an identical run without the mask still surfaces it', () => {
+      const vectors = pool()
+      const s = state([{ word: 'w0', feedback: { kind: 'rank', rank: 2 } }])
+
+      const baseline = suggest({ state: s, vectors, profile, ladder: ['w5', 'w6'], cache: new RankCache(vectors, 8), limit: 3 })
+      expect(baseline.regime).toBe('exploit')
+      expect(baseline.suggestions.length).toBeGreaterThan(0)
+      const topWord = baseline.suggestions[0].word
+
+      const suggestable = maskSuppressing(vectors, [topWord])
+      const withMask = suggest({
+        state: s, vectors, profile, ladder: ['w5', 'w6'], cache: new RankCache(vectors, 8), suggestable, limit: 3,
+      })
+
+      expect(baseline.suggestions.map((sg) => sg.word)).toContain(topWord)
+      expect(withMask.suggestions.map((sg) => sg.word)).not.toContain(topWord)
+      // Same size (limit backfills with the next-best candidate) — this isn't a truncation.
+      expect(withMask.suggestions).toHaveLength(baseline.suggestions.length)
+    })
+
+    it('does not filter probe suggestions and does not change bestRank/regime', () => {
+      const vectors = pool()
+      const ladder = ['w4', 'w5', 'w6', 'w7']
+      const s = state([])
+      // Suppress every probe word — if probes were filtered by the mask, none would come through.
+      const suggestable = maskSuppressing(vectors, ladder)
+
+      const r = suggest({ state: s, vectors, profile, ladder, cache: new RankCache(vectors, 8), suggestable, limit: 6 })
+      const probeWords = r.suggestions.filter((sg) => sg.source === 'probe').map((sg) => sg.word)
+      expect(probeWords).toEqual(ladder.slice(0, probeWords.length))
+      expect(probeWords.length).toBeGreaterThan(0)
+      expect(r.regime).toBe('explore')
+      expect(r.bestRank).toBeNull()
+    })
+
+    it('still scores a suppressed word passed as an observation — it shapes the fit even though its own bit is 0', () => {
+      const vectors = pool()
+      const suggestable = maskSuppressing(vectors, ['w1'])
+
+      const withSuppressedObservation = state([
+        { word: 'w0', feedback: { kind: 'rank', rank: 5 } },
+        { word: 'w1', feedback: { kind: 'rank', rank: 2 } },
+      ])
+      const withoutThatObservation = state([{ word: 'w0', feedback: { kind: 'rank', rank: 5 } }])
+
+      const withMask = suggest({
+        state: withSuppressedObservation, vectors, profile, ladder: ['w5', 'w6'],
+        cache: new RankCache(vectors, 8), suggestable, limit: 3,
+      })
+      const omitted = suggest({
+        state: withoutThatObservation, vectors, profile, ladder: ['w5', 'w6'],
+        cache: new RankCache(vectors, 8), limit: 3,
+      })
+
+      // bestRank/regime come from the observation loop, untouched by the mask.
+      expect(withMask.bestRank).toBe(2)
+      expect(withMask.regime).toBe('exploit')
+
+      // A weak first check: dropping w1's observation entirely collapses onto the same
+      // exclusion set as `omitted` only by coincidence of this fixture, so this alone
+      // isn't the sabotage-decisive assertion (see the exact-score check below).
+      expect(withMask.suggestions.map((sg) => sg.word)).not.toEqual(omitted.suggestions.map((sg) => sg.word))
+
+      // Decisive check: the fit's *scores* must match a reference computed with both
+      // observations (w0 rank=5, w1 rank=2) contributing, excluding only the observed/
+      // suppressed indices from the surfaced candidate list — not from the loss itself.
+      const w0Index = vectors.index.get('w0')!
+      const w1Index = vectors.index.get('w1')!
+      const expectedScores = scoreCandidates(
+        vectors,
+        new RankCache(vectors, 8),
+        [{ index: w0Index, rank: 5 }, { index: w1Index, rank: 2 }],
+        profile.priorLambda,
+      )
+      const expectedOrder = rankCandidates(expectedScores, new Set([w0Index, w1Index]), 3)
+      const expectedWords = expectedOrder.map((i) => vectors.words[i])
+
+      // Sabotage-verified: a mutant that filters `observations` by the mask before
+      // calling `scoreCandidates` (dropping w1's rank=2 evidence from the fit, instead
+      // of only excluding w1 from the surfaced candidate list) produces different
+      // suggestions and/or scores here — this assertion fails against it.
+      expect(withMask.suggestions.map((sg) => sg.word)).toEqual(expectedWords)
+      withMask.suggestions.forEach((sg, i) => {
+        expect(sg.score).toBeCloseTo(expectedScores[expectedOrder[i]], 10)
+      })
     })
   })
 })

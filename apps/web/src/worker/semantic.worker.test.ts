@@ -34,6 +34,20 @@ const VEC_HASH = parseVectors(VEC_BYTES).hash
 const PROBES_OK = JSON.stringify({ dictHash: VEC_HASH, probes: ['трава', 'мох'] })
 const PROBES_BAD_HASH = JSON.stringify({ dictHash: 'deadbeef', probes: ['трава', 'мох'] })
 
+/** Hand-builds a `semsg` asset (see `bin/build-candidates.py`): every word suggestable. */
+function suggestableBytes(hash: string): Uint8Array {
+  const count = WORDS.length
+  const header = `semsg 1 ${count} ${hash}\n`
+  const text = new TextEncoder().encode(header)
+  const bits = new Uint8Array(Math.ceil(count / 8)).fill(0xff)
+  const out = new Uint8Array(text.length + bits.length)
+  out.set(text, 0)
+  out.set(bits, text.length)
+  return out
+}
+const SUGGESTABLE_OK = suggestableBytes(VEC_HASH)
+const SUGGESTABLE_BAD_HASH = suggestableBytes('deadbeef')
+
 const PROFILE_OK = {
   id: 'contextno-ru',
   language: 'ru',
@@ -47,7 +61,12 @@ const PROFILE_OK = {
 const PROFILES_OK = JSON.stringify([PROFILE_OK])
 const PROFILES_NO_MATCH = JSON.stringify([{ ...PROFILE_OK, id: 'some-other-provider' }])
 
-const URLS = { vectors: '/semantic/ru.vec.bin', probes: '/semantic/ru.probes.json', profiles: '/semantic/profiles.json' }
+const URLS = {
+  vectors: '/semantic/ru.vec.bin',
+  probes: '/semantic/ru.probes.json',
+  profiles: '/semantic/profiles.json',
+  suggestable: '/semantic/ru.suggestable.bin',
+}
 
 function reqFor(id: number): SemanticRequest {
   return {
@@ -63,11 +82,18 @@ function reqFor(id: number): SemanticRequest {
   }
 }
 
-function fetchImplFor(probesBody: string, profilesBody: string): (url: string) => Promise<Response> {
+function fetchImplFor(
+  probesBody: string,
+  profilesBody: string,
+  suggestableBytes: Uint8Array = SUGGESTABLE_OK,
+): (url: string) => Promise<Response> {
   return async (url: string): Promise<Response> => {
     if (url === URLS.vectors) return { ok: true, arrayBuffer: async () => VEC_BYTES.buffer } as unknown as Response
     if (url === URLS.probes) return { ok: true, text: async () => probesBody } as unknown as Response
     if (url === URLS.profiles) return { ok: true, text: async () => profilesBody } as unknown as Response
+    if (url === URLS.suggestable) {
+      return { ok: true, arrayBuffer: async () => suggestableBytes.buffer } as unknown as Response
+    }
     throw new Error(`unexpected fetch url ${url}`)
   }
 }
@@ -126,9 +152,9 @@ describe('semantic.worker asset caching', () => {
     const r2 = await send(reqFor(2))
     expect(r2.error).toBeUndefined()
 
-    // One fetch per asset (vectors, probes, profiles) — NOT one per request.
-    // A worker that re-fetched per request would call this 6 times here.
-    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    // One fetch per asset (vectors, probes, profiles, suggestable) — NOT one per request.
+    // A worker that re-fetched per request would call this 8 times here.
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
   })
 
   it('does not start a second fetch+parse while the first request is still loading assets (concurrency guard)', async () => {
@@ -152,15 +178,22 @@ describe('semantic.worker asset caching', () => {
 
     expect(replyB.error).toBeUndefined()
     expect(replyB.result?.suggestions.length).toBeGreaterThan(0)
-    // Still exactly 3 fetch calls: the second request must not have started
+    // Still exactly 4 fetch calls: the second request must not have started
     // its own load while the first was in flight.
-    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
   })
 })
 
 describe('semantic.worker asset validation', () => {
   it('fails loudly when the probe ladder was built against a different lexicon than the vectors', async () => {
     vi.stubGlobal('fetch', vi.fn(fetchImplFor(PROBES_BAD_HASH, PROFILES_OK)))
+    const reply = await send(reqFor(1))
+    expect(reply.result).toBeUndefined()
+    expect(reply.error).toMatch(/does not match/)
+  })
+
+  it('fails loudly when the suggestable mask was built against a different lexicon than the vectors', async () => {
+    vi.stubGlobal('fetch', vi.fn(fetchImplFor(PROBES_OK, PROFILES_OK, SUGGESTABLE_BAD_HASH)))
     const reply = await send(reqFor(1))
     expect(reply.result).toBeUndefined()
     expect(reply.error).toMatch(/does not match/)

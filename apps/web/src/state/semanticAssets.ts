@@ -1,5 +1,5 @@
 /** URLs for the semantic-core assets, always relative to the deploy base. */
-export function semanticAssetUrls(): { vectors: string; probes: string; profiles: string } {
+export function semanticAssetUrls(): { vectors: string; probes: string; profiles: string; suggestable: string } {
   const base = import.meta.env.BASE_URL.endsWith('/')
     ? import.meta.env.BASE_URL
     : `${import.meta.env.BASE_URL}/`
@@ -7,5 +7,6 @@ export function semanticAssetUrls(): { vectors: string; probes: string; profiles
     vectors: `${base}semantic/ru.vec.bin`,
     probes: `${base}semantic/ru.probes.json`,
     profiles: `${base}semantic/profiles.json`,
+    suggestable: `${base}semantic/ru.suggestable.bin`,
   }
 }

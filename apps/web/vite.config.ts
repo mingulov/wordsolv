@@ -65,7 +65,9 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /\/semantic\/(ru\.probes|profiles)\.json$/,
+            // JSON metadata plus the ~11 KB suggestable bitmap — all small enough that
+            // revalidating on every load is cheap, unlike the 27.5 MB vector asset above.
+            urlPattern: /\/semantic\/(ru\.probes\.json|profiles\.json|ru\.suggestable\.bin)$/,
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'semantic-meta' },
           },

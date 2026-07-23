@@ -4,6 +4,7 @@ export interface SemanticAssetUrls {
   vectors: string
   probes: string
   profiles: string
+  suggestable: string
 }
 
 export interface SemanticRequest {

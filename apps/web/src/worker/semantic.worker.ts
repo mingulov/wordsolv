@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import {
-  RankCache, assertProbeLadderMatches, parseProbeLadder, parseProfiles, parseVectors, suggest,
-  type ProviderProfile, type VectorSet,
+  RankCache, assertProbeLadderMatches, parseProbeLadder, parseProfiles, parseSuggestable, parseVectors, suggest,
+  type ProviderProfile, type SuggestableMask, type VectorSet,
 } from '@wordsolv/semantic-core'
 import type { SemanticReply, SemanticRequest } from './semanticProtocol'
 
@@ -16,6 +16,7 @@ interface Loaded {
   ladder: string[]
   profile: ProviderProfile
   cache: RankCache
+  suggestable: SuggestableMask
 }
 
 // Module-scoped so the parsed VectorSet/ladder/profile/RankCache survive
@@ -30,12 +31,14 @@ let loading: Promise<Loaded> | null = null
 let latest = 0
 
 async function load(urls: SemanticRequest['urls'], providerId: string): Promise<Loaded> {
-  const [vecRes, probRes, profRes] = await Promise.all([
+  const [vecRes, probRes, profRes, suggestableRes] = await Promise.all([
     fetch(urls.vectors),
     fetch(urls.probes),
     fetch(urls.profiles),
+    fetch(urls.suggestable),
   ])
-  if (!vecRes.ok || !probRes.ok || !profRes.ok) throw new Error('failed to fetch semantic assets')
+  if (!vecRes.ok || !probRes.ok || !profRes.ok || !suggestableRes.ok)
+    throw new Error('failed to fetch semantic assets')
 
   const raw = new Uint8Array(await vecRes.arrayBuffer())
   const vectors = parseVectors(raw)
@@ -49,7 +52,22 @@ async function load(urls: SemanticRequest['urls'], providerId: string): Promise<
   const profile = parseProfiles(await profRes.text()).get(providerId)
   if (!profile) throw new Error(`unknown provider "${providerId}"`)
 
-  return { vectors, raw, ladder: ladder.probes, profile, cache: new RankCache(vectors, profile.rankUniverse) }
+  const suggestable = parseSuggestable(new Uint8Array(await suggestableRes.arrayBuffer()))
+  // Same lexicon-drift guard as the probe ladder above: both assets are
+  // gitignored and independently regenerable, so a mask built against a
+  // since-changed word list must fail loudly rather than silently suppress
+  // (or fail to suppress) the wrong indices.
+  if (suggestable.dictHash !== vectors.hash) {
+    throw new Error(
+      `suggestable mask dictHash "${suggestable.dictHash}" does not match the loaded vector asset's word-list hash "${vectors.hash}" ` +
+        `— the mask was built against a different word list; regenerate with "python3 bin/build-candidates.py"`,
+    )
+  }
+
+  return {
+    vectors, raw, ladder: ladder.probes, profile, suggestable,
+    cache: new RankCache(vectors, profile.rankUniverse),
+  }
 }
 
 function post(reply: SemanticReply): void {
@@ -73,6 +91,7 @@ self.onmessage = async (e: MessageEvent<SemanticRequest>) => {
       profile: loaded.profile,
       ladder: loaded.ladder,
       cache: loaded.cache,
+      suggestable: loaded.suggestable,
       limit: req.limit,
     })
     if (req.id !== latest) return // a newer request arrived while this one was scoring
