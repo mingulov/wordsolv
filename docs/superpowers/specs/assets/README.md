@@ -29,6 +29,8 @@ negative results that shaped the design.
 | `exp9_poolsize.py` | Does a bigger dictionary hurt? | **yes** — top-10 at N=8: 68% (20k) → 38% (87k) |
 | `exp10_tiers_rerank.py` | Tiering; reranking with a 2nd model | rank universe helps; navec reranking **hurts** (66%→44%) |
 | `exp11b_prior.py` | Frequency prior on the full pool | **λ=0.25 → 87% top-10 at N=8**; the largest single win |
+| `exp12_probes.py` | Probe ladder by farthest-point sampling | **worse than random** (22% vs 53% at k=40) |
+| `exp13_coverage_probes.py` | Probe ladder by greedy max-coverage | **75% reach top-300 by k=40** vs 48% random |
 
 ## Reproducing
 
