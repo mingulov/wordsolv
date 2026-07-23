@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { rankCandidates, scoreCandidates } from './fit'
 import { RankCache } from './ranks'
 import { suggest } from './suggest'
 import { parseVectors, serializeVectors } from './vectors'
@@ -98,6 +99,67 @@ describe('suggest', () => {
     expect(r.unvectorised).toEqual(['бариста', 'в'])
     expect(r.suggestions.map((s) => s.word)).not.toContain('бариста')
     expect(r.suggestions.map((s) => s.word)).not.toContain('в')
+  })
+
+  it('excludes an unvectorised observation from the fit, even though it lowers bestRank', () => {
+    // w0 (vectorised, rank 5) alone already crosses the exploreThreshold=3 boundary into
+    // exploit territory only if it leaks; on its own bestRank=5 keeps regime irrelevant here —
+    // what matters is the *fit*. If "бариста" (unvectorised, rank 2) leaked into the fit under
+    // any fallback index, its low rank (weight 1/2) would dominate the loss and change which
+    // candidates come out on top. The correct fit is exactly what scoreCandidates/rankCandidates
+    // produce from the vectorised observation (w0, rank 5) alone.
+    const vectors = pool()
+    const cache = new RankCache(vectors, 8)
+    const s = state([
+      { word: 'бариста', feedback: { kind: 'rank', rank: 2 } },
+      { word: 'w0', feedback: { kind: 'rank', rank: 5 } },
+    ])
+    const r = suggest({ state: s, vectors, profile, ladder: ['w5', 'w6'], cache, limit: 3 })
+
+    expect(r.unvectorised).toEqual(['бариста'])
+    expect(r.regime).toBe('exploit')
+    expect(r.suggestions.every((sg) => sg.source === 'fit')).toBe(true)
+
+    const w0Index = vectors.index.get('w0')!
+    const expectedScores = scoreCandidates(
+      vectors,
+      new RankCache(vectors, 8),
+      [{ index: w0Index, rank: 5 }],
+      profile.priorLambda,
+    )
+    const expectedOrder = rankCandidates(expectedScores, new Set([w0Index]), 3)
+    const expectedWords = expectedOrder.map((i) => vectors.words[i])
+
+    // Sabotage-verified: a mutant that pushes the unvectorised observation into the fit
+    // using a fallback index (e.g. index 0) instead of skipping it produces suggestions
+    // ['w2', 'w1', 'w3'] with different scores — this assertion fails against it.
+    expect(r.suggestions.map((sg) => sg.word)).toEqual(expectedWords)
+    r.suggestions.forEach((sg, i) => {
+      expect(sg.score).toBeCloseTo(expectedScores[expectedOrder[i]], 10)
+    })
+  })
+
+  it('bestRank counts an unvectorised observation when it is the only one', () => {
+    // No vectorised observations at all: if bestRank skipped unvectorised words entirely,
+    // it would stay null and regime would wrongly read 'explore'.
+    const r = run(state([{ word: 'бариста', feedback: { kind: 'rank', rank: 2 } }]))
+    expect(r.unvectorised).toEqual(['бариста'])
+    expect(r.bestRank).toBe(2)
+    expect(r.regime).toBe('exploit')
+  })
+
+  it('an unvectorised rank is what pushes the regime from explore into exploit', () => {
+    // w0 alone (rank 5) is above exploreThreshold=3 -> would read 'explore' in isolation.
+    // "бариста" (unvectorised, rank 2) is the true best rank and must flip the regime to
+    // 'exploit'. A mutant that skips unvectorised observations in the bestRank computation
+    // would leave bestRank at 5 and regime at 'explore' here.
+    const r = run(state([
+      { word: 'w0', feedback: { kind: 'rank', rank: 5 } },
+      { word: 'бариста', feedback: { kind: 'rank', rank: 2 } },
+    ]))
+    expect(r.unvectorised).toEqual(['бариста'])
+    expect(r.bestRank).toBe(2)
+    expect(r.regime).toBe('exploit')
   })
 
   it('multiple observations selects minimum rank for regime', () => {
