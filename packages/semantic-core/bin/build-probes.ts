@@ -170,9 +170,13 @@ function main(): void {
     ladder.push(vs.words[probeIdx[bestP]])
   }
 
-  writeFileSync(join(HERE, 'assets', 'ru.probes.json'), JSON.stringify(ladder, null, 2))
+  // Finding 5: carry the vector asset's own hash so a stale ladder (built against a
+  // different ru.vec.bin) can be detected and rejected loudly by consumers, instead
+  // of loading silently — see `assertProbeLadderMatches` in `src/probe.ts`.
+  const asset = { dictHash: vs.hash, probes: ladder }
+  writeFileSync(join(HERE, 'assets', 'ru.probes.json'), JSON.stringify(asset, null, 2))
   console.log(
-    `ru.probes.json: ${ladder.length} probes -> ${ladder.slice(0, 10).join(', ')} ` +
+    `ru.probes.json: ${ladder.length} probes (dictHash ${vs.hash}) -> ${ladder.slice(0, 10).join(', ')} ` +
       `(${((performance.now() - t0) / 1000).toFixed(1)}s total)`,
   )
 }

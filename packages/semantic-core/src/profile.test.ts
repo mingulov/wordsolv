@@ -84,4 +84,59 @@ describe('parseProfiles', () => {
     delete bad[0].lexicon.foldYo
     expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/lexicon\.foldYo/)
   })
+
+  // Finding 3: priorLambdaSchedule is optional and backward compatible.
+  it('parses a profile with no priorLambdaSchedule (backward compatible)', () => {
+    const m = parseProfiles(ok)
+    expect(m.get('contextno-ru')?.priorLambdaSchedule).toBeUndefined()
+  })
+
+  it('parses a valid priorLambdaSchedule', () => {
+    const withSchedule = JSON.parse(ok)
+    withSchedule[0].priorLambdaSchedule = [
+      { maxObservations: 2, lambda: 0.02 },
+      { maxObservations: 4, lambda: 0.05 },
+    ]
+    const m = parseProfiles(JSON.stringify(withSchedule))
+    expect(m.get('contextno-ru')?.priorLambdaSchedule).toEqual([
+      { maxObservations: 2, lambda: 0.02 },
+      { maxObservations: 4, lambda: 0.05 },
+    ])
+  })
+
+  it('rejects a non-array priorLambdaSchedule', () => {
+    const bad = JSON.parse(ok)
+    bad[0].priorLambdaSchedule = { maxObservations: 2, lambda: 0.02 }
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/priorLambdaSchedule must be an array/)
+  })
+
+  it('rejects a priorLambdaSchedule breakpoint with a non-positive maxObservations', () => {
+    const bad = JSON.parse(ok)
+    bad[0].priorLambdaSchedule = [{ maxObservations: 0, lambda: 0.02 }]
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/maxObservations must be a positive integer/)
+  })
+
+  it('rejects a priorLambdaSchedule breakpoint with a negative lambda', () => {
+    const bad = JSON.parse(ok)
+    bad[0].priorLambdaSchedule = [{ maxObservations: 2, lambda: -1 }]
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/lambda must be >= 0/)
+  })
+
+  it('rejects a priorLambdaSchedule not sorted by strictly ascending maxObservations', () => {
+    const bad = JSON.parse(ok)
+    bad[0].priorLambdaSchedule = [
+      { maxObservations: 4, lambda: 0.05 },
+      { maxObservations: 2, lambda: 0.02 },
+    ]
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/strictly ascending/)
+  })
+
+  it('rejects a priorLambdaSchedule with a duplicate maxObservations', () => {
+    const bad = JSON.parse(ok)
+    bad[0].priorLambdaSchedule = [
+      { maxObservations: 2, lambda: 0.02 },
+      { maxObservations: 2, lambda: 0.05 },
+    ]
+    expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/strictly ascending/)
+  })
 })

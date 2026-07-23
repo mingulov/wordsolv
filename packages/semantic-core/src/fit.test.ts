@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { rankCandidates, scoreCandidates } from './fit'
+import { rankCandidates, resolvePriorLambda, scoreCandidates } from './fit'
 import { RankCache } from './ranks'
 import { parseVectors, serializeVectors } from './vectors'
+import type { ProviderProfile } from './types'
 
 /**
  * Words on a line: index 0..7 evenly spaced on a semicircle, so "nearness" is
@@ -103,6 +104,61 @@ describe('rankCandidates', () => {
   it('omits excluded indices and respects the limit', () => {
     const scores = Float64Array.from([5, 1, 3, 2])
     expect(rankCandidates(scores, new Set([1]), 2)).toEqual([3, 2])
+  })
+})
+
+// Finding 3: priorLambda should vary with the number of informative
+// (vectorised, rank-bearing) observations, via an optional schedule on the
+// profile, rather than being a single constant.
+describe('resolvePriorLambda', () => {
+  const base: ProviderProfile = {
+    id: 'test',
+    language: 'ru',
+    feedback: 'rank',
+    lexicon: { pos: 'noun', lemmaOnly: true, foldYo: true },
+    rankUniverse: 21000,
+    priorLambda: 0.1,
+    exploreThreshold: 500,
+  }
+
+  it('returns priorLambda unchanged when no schedule is present (backward compatible)', () => {
+    expect(resolvePriorLambda(base, 0)).toBe(0.1)
+    expect(resolvePriorLambda(base, 1)).toBe(0.1)
+    expect(resolvePriorLambda(base, 100)).toBe(0.1)
+  })
+
+  it('returns priorLambda unchanged for an empty schedule array', () => {
+    expect(resolvePriorLambda({ ...base, priorLambdaSchedule: [] }, 1)).toBe(0.1)
+  })
+
+  it('applies the first breakpoint whose maxObservations covers the count', () => {
+    const profile: ProviderProfile = {
+      ...base,
+      priorLambdaSchedule: [
+        { maxObservations: 2, lambda: 0.02 },
+        { maxObservations: 4, lambda: 0.05 },
+      ],
+    }
+    expect(resolvePriorLambda(profile, 1)).toBe(0.02)
+    expect(resolvePriorLambda(profile, 2)).toBe(0.02)
+    expect(resolvePriorLambda(profile, 3)).toBe(0.05)
+    expect(resolvePriorLambda(profile, 4)).toBe(0.05)
+  })
+
+  it('falls through to priorLambda beyond the last breakpoint', () => {
+    const profile: ProviderProfile = {
+      ...base,
+      priorLambdaSchedule: [{ maxObservations: 2, lambda: 0.02 }],
+    }
+    expect(resolvePriorLambda(profile, 5)).toBe(0.1)
+  })
+
+  it('treats zero observations as covered by the smallest breakpoint', () => {
+    const profile: ProviderProfile = {
+      ...base,
+      priorLambdaSchedule: [{ maxObservations: 1, lambda: 0.02 }],
+    }
+    expect(resolvePriorLambda(profile, 0)).toBe(0.02)
   })
 })
 

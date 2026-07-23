@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parsePaste } from '../src/gamefile'
-import { parseProbeLadder } from '../src/probe'
+import { assertProbeLadderMatches, parseProbeLadder } from '../src/probe'
 import { parseProfiles } from '../src/profile'
 import { RankCache } from '../src/ranks'
 import { suggest } from '../src/suggest'
@@ -43,7 +43,15 @@ try {
 }
 
 const vectors = parseVectors(new Uint8Array(readFileSync(join(DICT, 'ru.vec.bin'))))
-const ladder = parseProbeLadder(readFileSync(join(DICT, 'ru.probes.json'), 'utf8'))
+const ladderAsset = parseProbeLadder(readFileSync(join(DICT, 'ru.probes.json'), 'utf8'))
+try {
+  assertProbeLadderMatches(ladderAsset, vectors.hash)
+} catch (e) {
+  const message = e instanceof Error ? e.message : String(e)
+  console.error(message)
+  process.exit(1)
+}
+const ladder = ladderAsset.probes
 
 let state
 let warnings: string[]

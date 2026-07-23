@@ -15,6 +15,16 @@ export interface SemanticState {
   rejected: string[]
 }
 
+/**
+ * One rung of a `priorLambda` schedule: applies when the count of informative
+ * (vectorised, rank-bearing) observations is `<= maxObservations`. See
+ * `resolvePriorLambda` in `fit.ts`.
+ */
+export interface PriorLambdaBreakpoint {
+  maxObservations: number
+  lambda: number
+}
+
 export interface ProviderProfile {
   id: string
   language: 'ru' | 'en'
@@ -22,8 +32,23 @@ export interface ProviderProfile {
   lexicon: { pos: 'noun' | 'any'; lemmaOnly: boolean; foldYo: boolean }
   /** Approximate vocabulary size of the provider; the scale predicted ranks are measured on. */
   rankUniverse: number
-  /** Strength of the frequency prior. */
+  /**
+   * Strength of the frequency prior used once the informative-observation count
+   * exceeds every `priorLambdaSchedule` breakpoint (or always, if no schedule is
+   * given) — i.e. the value calibrated at a high observation count.
+   */
   priorLambda: number
+  /**
+   * Optional, backward-compatible override of `priorLambda` at low observation
+   * counts. A smaller lambda measurably outperforms the high-N constant early
+   * (Finding 3 / BENCHMARKS.md's lambda-schedule table): most real sessions
+   * solve or stall with a median of only ~3 informative observations, where the
+   * high-N lambda is badly miscalibrated. Ascending by `maxObservations`;
+   * validated by `parseProfiles`. Omitting this field keeps `priorLambda`
+   * constant for every N, exactly as before this field existed — see
+   * `resolvePriorLambda` in `fit.ts`.
+   */
+  priorLambdaSchedule?: PriorLambdaBreakpoint[]
   /** Best observed rank at or below which the solver switches to the fit. */
   exploreThreshold: number
 }

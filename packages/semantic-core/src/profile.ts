@@ -15,6 +15,22 @@ export function parseProfiles(json: string): Map<string, ProviderProfile> {
       throw new Error(`profile "${p.id}": rankUniverse must be a positive integer`)
     if (typeof p.priorLambda !== 'number' || !(p.priorLambda >= 0))
       throw new Error(`profile "${p.id}": priorLambda must be >= 0`)
+    if (p.priorLambdaSchedule !== undefined) {
+      if (!Array.isArray(p.priorLambdaSchedule))
+        throw new Error(`profile "${p.id}": priorLambdaSchedule must be an array`)
+      let prevMax = 0
+      p.priorLambdaSchedule.forEach((bp, i) => {
+        if (typeof bp !== 'object' || bp === null)
+          throw new Error(`profile "${p.id}": priorLambdaSchedule[${i}] must be an object`)
+        if (typeof bp.maxObservations !== 'number' || !Number.isInteger(bp.maxObservations) || bp.maxObservations <= 0)
+          throw new Error(`profile "${p.id}": priorLambdaSchedule[${i}].maxObservations must be a positive integer`)
+        if (typeof bp.lambda !== 'number' || !(bp.lambda >= 0))
+          throw new Error(`profile "${p.id}": priorLambdaSchedule[${i}].lambda must be >= 0`)
+        if (bp.maxObservations <= prevMax)
+          throw new Error(`profile "${p.id}": priorLambdaSchedule must be sorted by strictly ascending maxObservations`)
+        prevMax = bp.maxObservations
+      })
+    }
     if (typeof p.exploreThreshold !== 'number' || !Number.isInteger(p.exploreThreshold) || p.exploreThreshold <= 0)
       throw new Error(`profile "${p.id}": exploreThreshold must be a positive integer`)
     const lex = p.lexicon

@@ -1,29 +1,58 @@
 import { describe, expect, it } from 'vitest'
-import { nextProbes, parseProbeLadder } from './probe'
+import { assertProbeLadderMatches, nextProbes, parseProbeLadder } from './probe'
+
+const asset = (probes: unknown, dictHash: unknown = 'abcd1234'): string =>
+  JSON.stringify({ dictHash, probes })
 
 describe('parseProbeLadder', () => {
-  it('parses and normalises', () => {
-    expect(parseProbeLadder('["Кот","ЛЁД"]')).toEqual(['кот', 'лед'])
+  it('parses and normalises, carrying the dictHash', () => {
+    const ladder = parseProbeLadder(asset(['Кот', 'ЛЁД']))
+    expect(ladder.probes).toEqual(['кот', 'лед'])
+    expect(ladder.dictHash).toBe('abcd1234')
   })
 
-  it('rejects a non-array', () => {
-    expect(() => parseProbeLadder('{}')).toThrow(/array/)
+  it('rejects a bare array (pre-Finding-5 shape)', () => {
+    expect(() => parseProbeLadder('["кот","лед"]')).toThrow(/object/)
+  })
+
+  it('rejects an object missing dictHash', () => {
+    expect(() => parseProbeLadder(JSON.stringify({ probes: ['кот'] }))).toThrow(/dictHash/)
+  })
+
+  it('rejects a non-string dictHash', () => {
+    expect(() => parseProbeLadder(asset(['кот'], 42))).toThrow(/dictHash/)
+  })
+
+  it('rejects a non-array probes field', () => {
+    expect(() => parseProbeLadder(JSON.stringify({ dictHash: 'abcd1234', probes: {} }))).toThrow(/array/)
   })
 
   it('rejects duplicates after normalisation', () => {
-    expect(() => parseProbeLadder('["лёд","лед"]')).toThrow(/duplicate/)
+    expect(() => parseProbeLadder(asset(['лёд', 'лед']))).toThrow(/duplicate/)
   })
 
   it('rejects an empty ladder', () => {
-    expect(() => parseProbeLadder('[]')).toThrow(/empty/)
+    expect(() => parseProbeLadder(asset([]))).toThrow(/empty/)
   })
 
   it('rejects non-string entries', () => {
-    expect(() => parseProbeLadder('[123, "кот"]')).toThrow(/string/)
+    expect(() => parseProbeLadder(asset([123, 'кот']))).toThrow(/string/)
   })
 
   it('rejects entries that become empty after normalisation', () => {
-    expect(() => parseProbeLadder('["   ", "кот"]')).toThrow(/empty/)
+    expect(() => parseProbeLadder(asset(['   ', 'кот']))).toThrow(/empty/)
+  })
+})
+
+describe('assertProbeLadderMatches', () => {
+  it('passes silently when the hash matches', () => {
+    const ladder = parseProbeLadder(asset(['кот'], 'deadbeef'))
+    expect(() => assertProbeLadderMatches(ladder, 'deadbeef')).not.toThrow()
+  })
+
+  it('throws loudly on a hash mismatch (Finding 5)', () => {
+    const ladder = parseProbeLadder(asset(['кот'], 'deadbeef'))
+    expect(() => assertProbeLadderMatches(ladder, 'other-hash')).toThrow(/does not match/)
   })
 })
 

@@ -44,6 +44,29 @@ describe('suggest', () => {
     expect(r.suggestions[0]).toMatchObject({ word: 'w5', source: 'probe' })
   })
 
+  // Finding 2: explore mode must reserve part of the response for fit candidates,
+  // not let probes fill the entire `limit` and starve the fit until the ladder
+  // is exhausted (spec §6.2). Uses a longer ladder + bigger limit than the
+  // default `run()` helper so the roughly-half/half split is visible in counts.
+  it('explore mode surfaces both probes and fit candidates, probes first, no duplicates', () => {
+    const vectors = pool()
+    const ladder = ['w4', 'w5', 'w6', 'w7']
+    const r = suggest({ state: state([]), vectors, profile, ladder, cache: new RankCache(vectors, 8), limit: 6 })
+
+    expect(r.regime).toBe('explore')
+    const sources = r.suggestions.map((s) => s.source)
+    expect(sources).toContain('probe')
+    expect(sources).toContain('fit')
+    // probes lead: every probe comes before every fit candidate
+    expect(sources.lastIndexOf('probe')).toBeLessThan(sources.indexOf('fit'))
+    // roughly half of `limit` (6) went to probes: floor(6 * 0.5) = 3
+    expect(sources.filter((s) => s === 'probe')).toHaveLength(3)
+    expect(r.suggestions).toHaveLength(6)
+    // no duplicate words across probes and fit
+    const words = r.suggestions.map((s) => s.word)
+    expect(new Set(words).size).toBe(words.length)
+  })
+
   it('exploits once a rank is at or below the threshold', () => {
     const r = run(state([{ word: 'w0', feedback: { kind: 'rank', rank: 2 } }]))
     expect(r.regime).toBe('exploit')

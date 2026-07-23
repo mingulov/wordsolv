@@ -6,6 +6,10 @@
     "lexicon": { "pos": "noun", "lemmaOnly": true, "foldYo": true },
     "rankUniverse": 21000,
     "priorLambda": 0.1,
+    "priorLambdaSchedule": [
+      { "maxObservations": 3, "lambda": 0.02 },
+      { "maxObservations": 4, "lambda": 0.05 }
+    ],
     "exploreThreshold": 500
   }
 ]

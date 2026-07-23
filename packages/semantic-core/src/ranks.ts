@@ -7,6 +7,21 @@ import { similarityTo, type VectorSet } from './vectors'
  * frequency-ordered), so predicted ranks land on the provider's scale rather
  * than on our larger pool's scale. Candidates outside the universe still get a
  * rank, by binary-searching their similarity into the universe's sorted list.
+ *
+ * **This is the transposed quantity relative to spec §6.1's formula.** The
+ * spec writes `p(c, w)`: candidate `c`'s predicted rank as seen from observed
+ * word `w`. What this function actually computes, entry-by-entry, is `p(w, c)`
+ * for every `c`: the rank of candidate `c` **within observed word `w`'s own
+ * neighbourhood** — i.e. `wordIndex` plays the role of the fixed point and every
+ * other word is ranked against it, not the other way around. Cosine similarity
+ * is symmetric (`sim(c,w) == sim(w,c)`), but *rank* is not: `w`'s position in
+ * `c`'s neighbourhood and `c`'s position in `w`'s neighbourhood generally
+ * differ, because each is measured against a different, word-specific ordering
+ * of the rest of the pool. This form is deliberate, not an oversight — it is
+ * the only one of the two that is cacheable per observed word (`RankCache`
+ * below): the result depends only on `wordIndex`, so it is computed once no
+ * matter how many candidates are later scored against it. `bin/build-probes.ts`
+ * documents the same symmetric approximation for its own use of `similarityTo`.
  */
 export function predictedRanks(vs: VectorSet, wordIndex: number, rankUniverse: number): Int32Array {
   const count = vs.words.length

@@ -47,6 +47,19 @@ export function serializeVectors(words: string[], rows: Float32Array, dim: numbe
   return out
 }
 
+/**
+ * Decodes a `semvec` asset (see `serializeVectors`) into a `VectorSet`.
+ *
+ * `VectorSet.data` is a **zero-copy `Int8Array` view over `bytes`'s own
+ * `ArrayBuffer`** (`Int8Array` has no alignment constraint, so this avoids
+ * doubling peak memory on the full ~26 MB production asset) — it is not a copy.
+ * Keep `bytes`'s backing buffer alive for as long as the returned `VectorSet` is
+ * used; a shorter-lived buffer leaves `data` reading freed or reused memory. This
+ * matters most for a planned Web Worker caller that does `fetch(...).then(r =>
+ * r.arrayBuffer())`: if that buffer is ever `postMessage`d elsewhere as a
+ * transferable (rather than retained), it is detached and `data` becomes invalid
+ * even though the `VectorSet` object itself still exists.
+ */
 export function parseVectors(bytes: Uint8Array): VectorSet {
   const decoder = new TextDecoder()
   const nl = bytes.indexOf(10)

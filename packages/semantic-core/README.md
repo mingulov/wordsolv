@@ -115,9 +115,10 @@ adding public API — do not reorder it.
   `input` is `{ state, vectors, profile, ladder, cache, limit? }` (`limit`
   defaults to 10). Returns `{ regime: 'explore' | 'exploit', bestRank,
   suggestions, unvectorised }`. Switches to `'exploit'` once the best rank
-  seen is at or under `profile.exploreThreshold`; while exploring, suggestions
-  are drawn from the probe ladder first, then backfilled with (labelled
-  low-confidence) fit candidates.
+  seen is at or under `profile.exploreThreshold`; while exploring, probes lead
+  but are capped at roughly half of `limit` (rounded down, at least 1) so the
+  fit — labelled low-confidence — always has room to backfill the rest, rather
+  than being crowded out until the ladder nearly runs out.
 - **`parsePaste(text, providerId) → { state, warnings }`** / **`serializeState(state) → string`**
   (`gamefile.ts`) — the tolerant importer/exporter behind the CLI's game-file
   format, described above.
@@ -139,10 +140,24 @@ adding public API — do not reorder it.
   corrupted array.
 - **`scoreCandidates`/`rankCandidates`** (`fit.ts`) — the 1/rank-weighted
   log-rank loss plus frequency prior (spec §6.1), and turning those scores
-  into a best-first candidate order.
-- **`parseProbeLadder(json) → string[]`** / **`nextProbes(ladder, used, limit)`**
-  (`probe.ts`) — the cold-start ladder in its committed greedy-selection
-  order (never re-sort it) and the walk that skips already-played entries.
+  into a best-first candidate order. **`resolvePriorLambda(profile,
+  informativeCount) → number`** resolves the lambda to use for a given number
+  of informative (vectorised, rank-bearing) observations: `profile.priorLambda`
+  if there's no `priorLambdaSchedule` (backward compatible), otherwise the
+  first schedule breakpoint whose `maxObservations` covers the count, falling
+  through to `priorLambda` beyond the last one. `suggest` calls this
+  internally — see BENCHMARKS.md's lambda-schedule table for why a constant
+  lambda is miscalibrated at the low observation counts real sessions mostly
+  operate at.
+- **`parseProbeLadder(json) → ProbeLadder`** (`{ dictHash, probes }`) /
+  **`assertProbeLadderMatches(ladder, vectorsHash)`** / **`nextProbes(ladder.probes,
+  used, limit)`** (`probe.ts`) — the cold-start ladder in its committed
+  greedy-selection order (never re-sort it), carrying the `dictHash` of the
+  `ru.vec.bin` it was built against. Callers that also load a `VectorSet` must
+  call `assertProbeLadderMatches(ladder, vectors.hash)` before using
+  `ladder.probes` — it throws if the ladder was built against a different
+  vector asset (both are gitignored and independently regenerable, so a stale
+  ladder would otherwise load silently).
 - **`newSemanticState`/`normalizeWord`/`parseSemanticState`** (`types.ts`) —
   state construction, word normalisation (trim, lowercase, `ё`→`е`), and the
   schema/invariant validator (a word appears at most once across
@@ -161,7 +176,7 @@ runs reproduce bit-for-bit.
 
 ```bash
 npx vitest run                                # fast suite, ~101 tests, no assets required
-npx vitest run --config vitest.benchmark.config.ts   # held-out regression floor, needs dict/assets/ru.vec.bin
+npx vitest run --config vitest.benchmark.config.ts   # regression floor (NOT held-out — all 40 gold secrets, no split), needs dict/assets/ru.vec.bin
 npx tsc --noEmit
 ```
 
