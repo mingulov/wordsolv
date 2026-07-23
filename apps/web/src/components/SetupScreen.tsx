@@ -6,7 +6,13 @@ import { useI18n } from '../i18n'
 import { deleteSession, loadSessions, newSession } from '../state/sessionStore'
 import type { Session } from '../state/types'
 
-export function SetupScreen({ onOpen }: { onOpen: (s: Session) => void }): JSX.Element {
+export function SetupScreen({
+  onOpen,
+  onOpenSemantic,
+}: {
+  onOpen: (s: Session) => void
+  onOpenSemantic: () => void
+}): JSX.Element {
   const { t } = useI18n()
   const { settings } = useSettings()
   const [language, setLanguage] = useState<Language>('ru')
@@ -26,6 +32,14 @@ export function SetupScreen({ onOpen }: { onOpen: (s: Session) => void }): JSX.E
   return (
     <div className="screen">
       <h1>{t('app.title')}</h1>
+      <section>
+        <h2>{t('setup.otherGames')}</h2>
+        <div className="row">
+          <button data-testid="setup-open-semantic" onClick={onOpenSemantic}>
+            {t('setup.semantic')}
+          </button>
+        </div>
+      </section>
       <section>
         <h2>{t('setup.newGame')}</h2>
         <div className="row">

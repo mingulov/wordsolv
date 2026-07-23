@@ -8,7 +8,10 @@ import { SetupScreen } from './SetupScreen'
 
 beforeEach(() => localStorage.clear())
 
-function renderScreen(onOpen: (s: Session) => void = () => {}): void {
+function renderScreen(
+  onOpen: (s: Session) => void = () => {},
+  onOpenSemantic: () => void = () => {},
+): void {
   const mockSettings: Settings = {
     uiLang: 'en',
     theme: 'auto',
@@ -19,7 +22,7 @@ function renderScreen(onOpen: (s: Session) => void = () => {}): void {
   render(
     <SettingsContext.Provider value={{ settings: mockSettings, update: () => {} }}>
       <I18nProvider lang="en">
-        <SetupScreen onOpen={onOpen} />
+        <SetupScreen onOpen={onOpen} onOpenSemantic={onOpenSemantic} />
       </I18nProvider>
     </SettingsContext.Provider>,
   )
@@ -42,4 +45,13 @@ it('lists saved sessions and resumes one', () => {
   renderScreen(onOpen)
   fireEvent.click(screen.getByTestId(`session-${saved.id}`))
   expect((onOpen.mock.calls[0][0] as Session).id).toBe(saved.id)
+})
+
+it('offers a control to switch to the semantic family, unrelated to starting a Wordle game', () => {
+  const onOpen = vi.fn()
+  const onOpenSemantic = vi.fn()
+  renderScreen(onOpen, onOpenSemantic)
+  fireEvent.click(screen.getByTestId('setup-open-semantic'))
+  expect(onOpenSemantic).toHaveBeenCalledOnce()
+  expect(onOpen).not.toHaveBeenCalled()
 })

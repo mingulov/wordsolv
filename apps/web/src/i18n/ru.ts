@@ -16,6 +16,8 @@ export const ru: Record<MsgKey, string> = {
   'setup.delete': 'Удалить',
   'setup.start': 'Начать',
   'setup.noSessions': 'Пока нет сохранённых игр',
+  'setup.otherGames': 'Другие игры',
+  'setup.semantic': 'Contexto (семантика)',
   'game.back': 'Игры',
   'game.guesses': 'попыток',
   'game.of': 'из',

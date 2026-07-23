@@ -1,6 +1,11 @@
 import { MOVE1_MAX_LEN, type GameState, type Language } from '@wordsolv/solver-core'
 import type { SolveMode } from '../worker/protocol'
 
+/** Which unrelated game family the shell is currently showing: the existing
+ * Wordle/Quordle solver, or the newer Contexto-style semantic solver. They
+ * share nothing but the app shell (settings, i18n) — see CLAUDE.md. */
+export type GameFamily = 'wordle' | 'semantic'
+
 export interface Session {
   id: string
   name: string

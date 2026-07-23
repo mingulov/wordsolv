@@ -14,6 +14,8 @@ export const en = {
   'setup.delete': 'Delete',
   'setup.start': 'Start',
   'setup.noSessions': 'No saved games yet',
+  'setup.otherGames': 'Other games',
+  'setup.semantic': 'Contexto (semantic)',
   'game.back': 'Games',
   'game.guesses': 'guesses',
   'game.of': 'of',
