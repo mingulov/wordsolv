@@ -4,6 +4,7 @@ dist/
 coverage/
 *.log
 apps/web/public/dict/
+apps/web/public/semantic/
 apps/web/test-results/
 apps/web/playwright-report/
 .playwright-mcp/

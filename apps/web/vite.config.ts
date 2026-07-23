@@ -54,6 +54,21 @@ export default defineConfig({
               expiration: { maxEntries: 6, maxAgeSeconds: 30 * 24 * 60 * 60 },
             },
           },
+          {
+            // 27.5 MB — far over the precache limit, so it is fetched and cached on demand.
+            urlPattern: /\/semantic\/ru\.vec\.bin$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'semantic-vectors',
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /\/semantic\/(ru\.probes|profiles)\.json$/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'semantic-meta' },
+          },
         ],
       },
     }),
