@@ -50,11 +50,16 @@ npm run semantic:probes    # -> dict/assets/ru.probes.json (cold-start probe lad
 ```
 
 `dict/assets/profiles.json` (provider registry — lexicon policy, `rankUniverse`,
-`priorLambda`, `exploreThreshold` per provider) is **committed**, unlike the
-other two assets. `ru.vec.bin` and `ru.probes.json` are generated and
-gitignored, same discipline as `apps/web/public/dict/` in `solver-core` — if
-they look stale or missing, re-run the two commands above (in order; probes
-are built from the vectors).
+`priorLambda`, `priorLambdaSchedule`, `exploreThreshold` per provider) is
+**committed**, unlike the other two assets. `ru.vec.bin` and `ru.probes.json`
+are generated and gitignored, same discipline as `apps/web/public/dict/` in
+`solver-core` — if they look stale or missing, re-run the two commands above
+(in order; probes are built from the vectors).
+
+- `priorLambdaSchedule` — optional, backward-compatible list of
+  `{ maxObservations, lambda }` breakpoints that override `priorLambda` at low
+  informative-observation counts; see `resolvePriorLambda` and
+  `BENCHMARKS.md`'s "λ schedule" section.
 
 `priorLambda` for `contextno-ru` ships as **0.1**, re-calibrated on a held-out
 split in a later task than the one that originally wrote the design spec

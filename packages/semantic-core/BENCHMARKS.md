@@ -238,9 +238,15 @@ rows show. Below 300, the threshold is real and visible: 50 and 100 delay the
 explore→exploit switch (only 8-9/20 ever reach exploit, vs. 15/20 at ≥200) and cost
 noticeably more turns (median 46 vs. 33) without improving the solved count at all.
 
-The sweep's own tie-break (solved count, then lowest median, first-checked wins)
-picked **200** — the smallest threshold in the tied-optimal band. Held out, though, it
-does *not* hold up:
+**This decision is a held-out tie-break, not a clean tuning-split selection**, and is
+labelled as such rather than presented as if the tuning split alone picked a winner.
+Every threshold from 200 through 2000 tied at 14/20 solved with the same median (33
+turns) on the tuning split — the structural flatness described above means the
+tuning split itself cannot distinguish among them. The sweep's own mechanical
+tie-break rule (solved count, then lowest median, then first-checked-in-the-grid
+wins) nominally landed on **200** only because it is the smallest value in that tied
+band, not because the tuning split found any evidence favouring it over 500. The
+actual decision was made by breaking that tie on the held-out split:
 
 ```
 held-out threshold=500 (previously shipped): 13/20 solved (median 22 turns), 14/20 entered exploit (median turn 26)
@@ -251,10 +257,12 @@ held-out threshold=200 (tune-selected):      12/20 solved (median 26 turns), 12/
 500 does not generalise: 500 solves one more held-out secret with a lower median turn
 count. Given the structural flatness above 300 and 500's held-out edge over the
 naively tune-selected 200, there is no evidence to move off the spec's original value.
-This is what "calibrated" means here — a real sweep was run, and the answer it gives,
-honestly reported, is "keep 500."
+This is what "calibrated" means here — a real sweep was run, its tuning split tied,
+the tie was broken on held-out data (a held-out tie-break, defensible precisely
+because the action taken was "keep the incumbent" rather than adopt a value chosen
+by peeking at held-out data), and the honest answer is "keep 500."
 
-## Closed-loop simulation (Findings 2 & 3: before vs. after)
+## Closed-loop simulation (Findings 2 & 3: cap-matched, correctly attributed)
 
 The most decision-relevant number: not "where does the true answer rank given N
 observations" (above), but "how many turns does an actual player need, end to end,
@@ -269,15 +277,58 @@ ranks come only from each secret's own gold top-300 list; a guess outside it has
 discoverable rank in this fixture and is recorded as "played, no signal" (excluded
 from later suggestions, but not fed into the fit as a fabricated rank).
 
-**Before** (pre-fix: explore mode never surfaced a fit candidate until ~30 of 40
-probes were used, per Finding 2; constant λ=0.1 for every N, per Finding 3) — as
-measured by the reviewer:
+**Correction:** an earlier version of this section compared a 27/40 (median 44)
+"before" number against a 30/40 (median 29) "after" number and credited the entire
+gap to Findings 2 and 3. That comparison was invalid — the "before" run used a
+100-turn cap and the "after" run used the raised 150-turn cap, so part of the
+apparent gain was just "the simulation was allowed to keep guessing for longer,"
+not anything Findings 2 or 3 did. A reviewer re-measured with the turn cap held
+fixed across each comparison and independently reproduced the numbers below.
 
-> 27/40 puzzles reached rank 1 (median 44 guesses, min 9, max 96); 13 never solved, 10
-> of which never got any guess inside the secret's top-300; only 29/40 ever entered
-> exploit, median at turn ~25; median 3 informative observations held at solve time.
+| run | solved | median |
+|---|---|---|
+| pre-fix code, 100 turns | 27/40 | 44 |
+| pre-fix code, 150 turns | 29/40 | 46 |
+| shipped code, 100 turns | 29/40 | 29 |
+| shipped code, 150 turns | 30/40 | 29 |
+| shipped code with the λ schedule removed, 150 turns | 29/40 | 46 |
 
-**After** (this fix wave):
+**Correct attribution**, reading the cap-matched rows above:
+
+- **Raising the turn cap (100→150) alone accounts for +2 solves.** Holding the
+  code fixed at pre-fix and only raising the cap moves 27/40 → 29/40 (median
+  actually ticks *up*, 44→46 — a longer cap does not by itself make the median
+  session shorter, it only gives more of the stragglers a chance to eventually
+  land on the answer).
+- **The per-N λ schedule (Finding 3) alone accounts for +1 solve and the
+  entire median improvement (46→29).** "Shipped code with the λ schedule
+  removed, 150 turns" (29/40, median 46) is byte-identical to "pre-fix code,
+  150 turns" (29/40, median 46) — i.e. with the schedule stripped back out,
+  the shipped code's closed-loop behaviour reduces exactly to pre-fix
+  behaviour at the same cap. Adding the schedule back moves that to 30/40,
+  median 29. The 34%-shorter median session is attributable to the λ
+  schedule, not to Finding 2.
+- **The explore-mode fit-surfacing change (Finding 2) contributes exactly
+  zero measured effect in this harness.** This is structural, not a
+  measurement gap: `exploreThreshold` ships at 500, and the gold fixture only
+  ever reveals ranks up to 300 (see "exploreThreshold (Finding 4)" above) — so
+  every informative observation this harness can produce already has rank
+  ≤300 < 500, which flips the regime to `'exploit'` on the very first one.
+  Finding 2's change only changes behaviour while `regime === 'explore'`
+  *and* the fit has candidates to surface; those two conditions can never
+  both hold in this fixture, so the closed-loop simulator can never exercise
+  the changed code path. **This is not evidence the fix does nothing** — in
+  real play, ranks run to ~21,000 rather than being capped at 300, so a
+  player can spend many turns below `exploreThreshold` with informative
+  observations already in hand, which is exactly the situation Finding 2
+  targets. It is simply unmeasured here, and this harness cannot be used to
+  claim otherwise.
+
+These three effects are additive and sum to the full observed gap: +2 (cap) + 1
+(λ schedule) + 0 (explore surfacing) = +3 solves, 27/40 → 30/40, matching
+"shipped code, 150 turns" vs. "pre-fix code, 100 turns" exactly.
+
+For reference, the full shipped-code run (150 turns, the config that ships):
 
 ```
 $ npx tsx bin/evaluate.ts --section closed-loop    (28.5s wall-clock)
@@ -289,29 +340,12 @@ a guess in the secret's top-300); 30/40 ever entered exploit (median turn 26); m
 never solved: дерево, железо, король, кот, окно, рыба, сердце, смех, стол, цветок
 ```
 
-| | before | after |
-|---|---|---|
-| solved | 27/40 (68%) | **30/40 (75%)** |
-| median turns to solve | 44 | **29** |
-| min / max turns (solved) | 9 / 96 | 9 / 112 |
-| never solved | 13 | **10** |
-| ...of which never got a guess in top-300 | 10 | 9 |
-| ever entered exploit | 29/40 | **30/40** |
-| median turn exploit entered | ~25 | 26 |
-| median informative observations at solve time | 3 | 2 |
-
-Findings 2 and 3 measurably help: 3 more puzzles solve, the median session is 34%
-shorter (44→29 turns), and fewer puzzles go unsolved. Two numbers move the "wrong"
-way and are called out rather than hidden: max turns rose (96→112, one puzzle now
-runs longer before giving up inside the raised 150-turn cap) and the median turn
-exploit is first entered ticked up by one (25→26) — neither changes the headline
-(more puzzles solve, faster, on the median). The 10 never-solved secrets are `дерево,
-железо, король, кот, окно, рыба, сердце, смех, стол, цветок`; for 9 of those 10, not
-one guess (out of every ladder probe plus every fit candidate tried) ever landed
-inside that secret's own top-300 — untouched by definition, since Findings 2 and 3
-both operate on evidence that exists, and there is none to exploit here. That is the
-cold-start/probe-coverage weakness spec §10 risk 3 already names, not something this
-fix wave claims to solve.
+The 10 never-solved secrets are `дерево, железо, король, кот, окно, рыба, сердце,
+смех, стол, цветок`; for 9 of those 10, not one guess (out of every ladder probe
+plus every fit candidate tried) ever landed inside that secret's own top-300 —
+untouched by definition, since none of these fixes can act on evidence that does
+not exist. That is the cold-start/probe-coverage weakness spec §10 risk 3 already
+names, not something this fix wave claims to solve.
 
 ## Regression floor
 

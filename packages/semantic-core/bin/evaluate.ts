@@ -116,19 +116,30 @@ if (sections.has('lambda')) {
   const N_VALUES = [1, 2, 3, 4, 5, 8]
   const LAMBDA_GRID = [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1]
 
+  // Tie-break (Minor 4): lowest tuning-split median wins; a tied median is
+  // broken by the *higher* tuning-split top-10 rate. Without this, N=5 and
+  // N=8 nominally "pick" lambda=0.02 (median 1, tied with 0.05 and 0.1 — a
+  // coarse-grained statistic over 120 samples) even though 0.02's top-10 is
+  // clearly worse there (see BENCHMARKS.md's lambda-schedule section) — this
+  // is exactly the reasoning that keeps N=5/N=8 off the shipped schedule and
+  // on the base `priorLambda: 0.1` instead, previously documented only as
+  // prose, not reproduced by this script.
   const schedule: { n: number; lambda: number }[] = []
   for (const n of N_VALUES) {
-    let best = { lambda: LAMBDA_GRID[0], median: Infinity }
+    let best = { lambda: LAMBDA_GRID[0], median: Infinity, top10: -Infinity }
     for (const lambda of LAMBDA_GRID) {
       const p = positions(tune, n, lambda)
       const median = [...p].sort((a, b) => a - b)[Math.floor(p.length / 2)]
+      const top10 = (p.filter((x) => x <= 10).length / p.length) * 100
       console.log(`  tune N=${n} lambda=${lambda}: ${summarise(p)}`)
-      if (median < best.median) best = { lambda, median }
+      if (median < best.median || (median === best.median && top10 > best.top10)) {
+        best = { lambda, median, top10 }
+      }
     }
     schedule.push({ n, lambda: best.lambda })
   }
 
-  console.log('\nchosen schedule (tuning split, lowest median wins):')
+  console.log('\nchosen schedule (tuning split, lowest median wins, ties broken by higher top-10):')
   for (const { n, lambda } of schedule) console.log(`  N<=${n} -> lambda=${lambda}`)
 
   console.log('\nheld-out performance of the chosen per-N schedule:')

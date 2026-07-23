@@ -1,5 +1,15 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseProfiles } from './profile'
+
+// The real committed asset (`dict/assets/profiles.json`), not the 27.5MB
+// `ru.vec.bin` — this file is always present in a fresh checkout (it is the
+// one semantic-core asset that IS committed), so this test needs no
+// `describe.runIf` guard and always runs in the fast suite. Following
+// `src/benchmark.test.ts`'s node:fs pattern (that file's one pre-existing
+// test-only exception to "no Node APIs in src/").
+const SHIPPED_PROFILES = join(import.meta.dirname, '..', 'dict', 'assets', 'profiles.json')
 
 const ok = JSON.stringify([
   {
@@ -138,5 +148,32 @@ describe('parseProfiles', () => {
       { maxObservations: 2, lambda: 0.05 },
     ]
     expect(() => parseProfiles(JSON.stringify(bad))).toThrow(/strictly ascending/)
+  })
+
+  // Minor 3: the shipped profile (dict/assets/profiles.json) carries the λ
+  // schedule but was previously validated only by src/benchmark.test.ts, which
+  // CI skips (no vector asset). This test reads the real committed asset
+  // directly, requires no vector asset, and runs unconditionally in the fast
+  // suite, so CI actually exercises the shape that ships.
+  describe('the real shipped dict/assets/profiles.json', () => {
+    it('parses, and contextno-ru carries a valid, strictly-ascending priorLambdaSchedule', () => {
+      const json = readFileSync(SHIPPED_PROFILES, 'utf8')
+      const profiles = parseProfiles(json)
+      const profile = profiles.get('contextno-ru')
+      expect(profile).toBeDefined()
+
+      const schedule = profile!.priorLambdaSchedule
+      expect(schedule).toBeDefined()
+      expect(schedule!.length).toBeGreaterThan(0)
+
+      for (const bp of schedule!) {
+        expect(Number.isInteger(bp.maxObservations)).toBe(true)
+        expect(bp.maxObservations).toBeGreaterThan(0)
+        expect(bp.lambda).toBeGreaterThanOrEqual(0)
+      }
+      for (let i = 1; i < schedule!.length; i++) {
+        expect(schedule![i].maxObservations).toBeGreaterThan(schedule![i - 1].maxObservations)
+      }
+    })
   })
 })

@@ -41,16 +41,25 @@ export function parseProbeLadder(json: string): ProbeLadder {
 }
 
 /**
- * Fails loudly (Finding 5) when `ladder` was built against a different vector
- * asset than the one loaded as `vectorsHash` (`VectorSet.hash`). Both
- * `ru.vec.bin` and `ru.probes.json` are gitignored and independently
- * regenerable, so without this check a stale probe ladder loads silently.
+ * Fails loudly (Finding 5) when `ladder`'s recorded `dictHash` does not equal
+ * the currently-loaded vector asset's `VectorSet.hash` — i.e. the *word list*
+ * the ladder was built against differs from the word list of the vectors
+ * loaded now. Both `ru.vec.bin` and `ru.probes.json` are gitignored and
+ * independently regenerable, so without this check a ladder built against a
+ * since-changed lexicon loads silently.
+ *
+ * What this does **not** catch (Minor 2): `VectorSet.hash` is computed from
+ * the word list alone (`hashWords` in `vectors.ts`), not from the embedding
+ * values. A re-quantised `ru.vec.bin`, or a differently-trained embedding
+ * built over the identical lexicon, produces the identical hash and passes
+ * this check undetected — this guard verifies lexicon agreement only, not
+ * "same asset" in any stronger sense.
  */
 export function assertProbeLadderMatches(ladder: ProbeLadder, vectorsHash: string): void {
   if (ladder.dictHash !== vectorsHash) {
     throw new Error(
-      `probe ladder dictHash "${ladder.dictHash}" does not match vector asset hash "${vectorsHash}" ` +
-        `— regenerate with "npm run semantic:probes"`,
+      `probe ladder dictHash "${ladder.dictHash}" does not match the loaded vector asset's word-list hash "${vectorsHash}" ` +
+        `— the ladder was built against a different word list; regenerate with "npm run semantic:probes"`,
     )
   }
 }

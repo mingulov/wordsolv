@@ -9,7 +9,18 @@ export interface VectorSet {
   hash: string
 }
 
-/** djb2 over the word list — detects lexicon drift, mirroring the opening book's dictHash. */
+/**
+ * djb2 over the word list only (order + spelling) — detects lexicon drift,
+ * mirroring the opening book's dictHash.
+ *
+ * Limitation: this hash is a function of `words` alone; it never reads `rows`
+ * or `dim`. Two `ru.vec.bin` builds that share the identical word list but
+ * differ in the embedding *values* — a re-quantisation of the same source
+ * vectors, or a differently-trained embedding fit over the same lexicon —
+ * produce the exact same hash. Consumers that compare hashes (`VectorSet.hash`,
+ * `ProbeLadder.dictHash`) can therefore only detect "the word list changed,"
+ * never "the vectors changed under an unchanged word list."
+ */
 function hashWords(words: string[]): string {
   let h = 5381
   for (const word of words) {
