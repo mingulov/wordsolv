@@ -46,7 +46,14 @@ const COVER = 300          // spec §6.3
 const SECRETS = 20000      // proxy universe of plausible secrets
 const CANDIDATES = 6000    // probes are drawn from the most frequent words
 const LADDER = 40
-const ABSTRACT = /(ость|ение|ание|изм|ция|ство|тие|ика|ура|ота|изна|щина|ирование|ация)$/
+// -гия/-фия/-метрия/-номия catch the -огия/-логия/-графия/-метрия/-номия loanword
+// family (онкология, религия, география, экономия, ...); -отка/-овка/-евка catch
+// the common deverbal action-noun pattern (обработка, установка, тренировка, ...).
+// Neither is exhaustive — see bin/evaluate.ts's before/after ladder comparison for
+// the abstract words (речь, мечта, совет, капитал, финал, подъем, ...) that carry
+// no distinguishing suffix and survive regardless.
+const ABSTRACT =
+  /(ость|ение|ание|изм|ция|ство|тие|ика|ура|ота|изна|щина|ирование|ация|гия|фия|метрия|номия|отка|овка|евка)$/
 
 function main(): void {
   const t0 = performance.now()
