@@ -103,6 +103,21 @@ rejected}`), which is how `serializeState` output can be fed back in when
 feedback includes non-integer similarity scores that the plain-text grammar
 can't express.
 
+`parsePaste` also accepts a **page dump** pasted straight off a phone: Android
+Chrome's copy action puts a word and its rank on separate lines, wrapped in
+page chrome (logo, buttons, header labels whose value is the *next* line, an
+ad footer). A single-token word line is paired with the single-token integer
+line that follows it; a label line (ends with `:` and nothing after it, e.g.
+`Игра:`) is dropped along with its dangling value line; a line that can't be
+part of a word (contains `#`, emoji, or other non-letter content) is dropped;
+a word with no following rank, or a rank with no preceding word, is dropped
+with a warning rather than a hard error — page chrome is expected, not a
+malformed guess. An exact repeat (same word, same rank — the page re-showing
+the latest guess on its own highlighted row) is dropped silently; a repeat
+with a *different* rank still warns, same as the single-line format. A hard
+error (with the usual `line N: ` prefix) is reserved for input that reads as
+a genuine, deliberate "word rank" pair with an invalid rank, e.g. `слово 0`.
+
 Words the provider rejects and words your own guesses used are both excluded
 from future suggestions. A word you enter that the provider *scored* but that
 our embedding doesn't cover is reported as **unvectorised**: shown so you know

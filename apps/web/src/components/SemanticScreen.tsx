@@ -165,6 +165,7 @@ export function SemanticScreen({ onExit }: { onExit: () => void }): JSX.Element 
 
       <section>
         <h2>{t('semantic.paste')}</h2>
+        <p className="dim">{t('semantic.pasteHint')}</p>
         <textarea
           data-testid="semantic-paste-text"
           rows={4}

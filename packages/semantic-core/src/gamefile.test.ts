@@ -39,8 +39,14 @@ describe('parsePaste', () => {
     expect(warnings[0]).toMatch(/line 2/)
   })
 
+  // A genuine "word rank" pair whose rank token is neither a marker nor an integer still
+  // hard-errors. (Previously this fixture was the 3-token phrase "что это такое" — but a
+  // tail of 2+ tokens that isn't a recognised marker is now read as an unrelated phrase
+  // (page-dump ad text, a page title) and warned about instead of erroring; see the
+  // multi-line/page-dump tests below. A single stray non-integer token is unambiguous, so
+  // it keeps the hard error.)
   it('throws with a line number on an unparseable line', () => {
-    expect(() => parsePaste('вода 299\nчто это такое', 'contextno-ru')).toThrow(/line 2: /)
+    expect(() => parsePaste('вода 299\nозеро abc', 'contextno-ru')).toThrow(/line 2: /)
   })
 
   it('throws on a rank below 1', () => {
@@ -130,8 +136,134 @@ describe('parsePaste', () => {
   // Finding 5b: line numbers in errors must count blank/comment lines that precede the error.
   it('reports the correct line number past leading blanks and comments', () => {
     expect(() =>
-      parsePaste('# note\n\nвода 299\nчто это такое', 'contextno-ru'),
+      parsePaste('# note\n\nвода 299\nозеро abc', 'contextno-ru'),
     ).toThrow(/line 4: /)
+  })
+
+  describe('page-dump paste (word and rank on separate lines)', () => {
+    it('pairs a word-only line with the integer-only line that follows it', () => {
+      const { state, warnings } = parsePaste('вода\n299', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toEqual([])
+    })
+
+    it('skips a label line and its dangling value', () => {
+      const { state, warnings } = parsePaste('Игра:\nИгра #30\nвода\n299', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toEqual([])
+    })
+
+    it('skips a bare label with no following line', () => {
+      const { state } = parsePaste('вода\n299\nПопыток:', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+    })
+
+    it('skips lines that cannot be part of a word: emoji, symbols, and stray "#" content', () => {
+      const { state, warnings } = parsePaste('🏆\n✕\nИгра #30\nвода\n299', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toEqual([])
+    })
+
+    it('warns and skips a word-only line with no following rank', () => {
+      const { state, warnings } = parsePaste('подсказка\n\nвода\n299', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toMatch(/line 1.*подсказка.*no following rank/)
+    })
+
+    it('warns and skips a multi-word phrase with no rank (page footer/ad text)', () => {
+      const { state, warnings } = parsePaste(
+        'вода\n299\nПроверить сочинение ЕГЭ',
+        'contextno-ru',
+      )
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toMatch(/line 3.*проверить.*no following rank/)
+    })
+
+    it('warns and skips an integer-only line with no preceding word', () => {
+      const { state, warnings } = parsePaste('4\nвода\n299', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'вода', feedback: { kind: 'rank', rank: 299 } }])
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toMatch(/line 1.*no preceding word/)
+    })
+
+    it('silently drops an exact multi-line duplicate (same word, same rank)', () => {
+      const { state, warnings } = parsePaste('дерево\n33\nдерево\n33', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'дерево', feedback: { kind: 'rank', rank: 33 } }])
+      expect(warnings).toEqual([])
+    })
+
+    it('still warns on a multi-line duplicate with a conflicting rank', () => {
+      const { state, warnings } = parsePaste('дерево\n33\nдерево\n40', 'contextno-ru')
+      expect(state.observations).toEqual([{ word: 'дерево', feedback: { kind: 'rank', rank: 33 } }])
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toMatch(/duplicate word "дерево"/)
+    })
+
+    it('mixes single-line and multi-line pairs in the same paste', () => {
+      const { state, warnings } = parsePaste('лес 111\nполе\n222\nречка: 333', 'contextno-ru')
+      expect(state.observations).toEqual([
+        { word: 'лес', feedback: { kind: 'rank', rank: 111 } },
+        { word: 'поле', feedback: { kind: 'rank', rank: 222 } },
+        { word: 'речка', feedback: { kind: 'rank', rank: 333 } },
+      ])
+      expect(warnings).toEqual([])
+    })
+
+    // Verbatim capture from контекстно.рф via Android Chrome's "copy" action: word and
+    // rank land on separate lines, wrapped in page chrome (logo, hint button, header
+    // labels with their values on the next line, and a trailing ad footer). The most
+    // recent guess ("дерево") is additionally repeated as a highlighted row above the
+    // list, so it appears twice with the same rank — an exact duplicate, not a conflict.
+    const ANDROID_CHROME_DUMP = [
+      'КОНТЕКСТНО',
+      '',
+      '🏆',
+      '',
+      'подсказка',
+      '',
+      'Игра:',
+      'Игра #30',
+      'Попыток:',
+      '4',
+      'дерево',
+      '33',
+      'дерево',
+      '33',
+      'снег',
+      '206',
+      'вода',
+      '299',
+      'кот',
+      '3612',
+      'Проверить сочинение ЕГЭ',
+      'Бесплатная проверка сочинений ЕГЭ и ОГЭ по критериям ФИПИ',
+      '✕',
+    ].join('\n')
+
+    it('extracts exactly the four distinct guesses from the real Android page dump', () => {
+      const { state, warnings } = parsePaste(ANDROID_CHROME_DUMP, 'contextno-ru')
+      expect(state.observations).toEqual([
+        { word: 'дерево', feedback: { kind: 'rank', rank: 33 } },
+        { word: 'снег', feedback: { kind: 'rank', rank: 206 } },
+        { word: 'вода', feedback: { kind: 'rank', rank: 299 } },
+        { word: 'кот', feedback: { kind: 'rank', rank: 3612 } },
+      ])
+      expect(state.rejected).toEqual([])
+      // The trap: "Попыток:" / "4" must never be read as a guess "попыток" ranked 4.
+      expect(state.observations.some((o) => o.word === 'попыток')).toBe(false)
+      expect(state.observations.some((o) => o.word === 'игра')).toBe(false)
+      // Every skipped word-with-no-rank produced a warning, not a thrown error.
+      expect(warnings.length).toBeGreaterThan(0)
+    })
+
+    it('round-trips the real Android page dump through parsePaste -> serializeState -> parsePaste', () => {
+      const first = parsePaste(ANDROID_CHROME_DUMP, 'contextno-ru')
+      const again = parsePaste(serializeState(first.state), 'contextno-ru')
+      expect(again.state.observations).toEqual(first.state.observations)
+      expect(again.state.rejected).toEqual(first.state.rejected)
+    })
   })
 })
 

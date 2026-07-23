@@ -96,6 +96,7 @@ export const ru: Record<MsgKey, string> = {
   'semantic.unvectorised': 'нет в нашей модели — не влияет на подсказки',
   'semantic.loadingAssets': 'загрузка семантической модели…',
   'semantic.paste': 'Вставить',
+  'semantic.pasteHint': 'Вставляйте текст сайта как есть — подходит и «слово ранг» в строке, и слово с рангом на отдельных строках (например, при копировании на Android)',
   'semantic.pasteApply': 'Применить',
   'semantic.export': 'Экспорт',
   'semantic.back': 'Игры',

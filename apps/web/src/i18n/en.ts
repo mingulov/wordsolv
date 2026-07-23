@@ -94,6 +94,7 @@ export const en = {
   'semantic.unvectorised': 'not in our model — cannot inform suggestions',
   'semantic.loadingAssets': 'loading semantic model…',
   'semantic.paste': 'Paste',
+  'semantic.pasteHint': 'Paste the site’s text as-is — word+rank per line, or word and rank on separate lines (e.g. copied on Android), also works',
   'semantic.pasteApply': 'Apply',
   'semantic.export': 'Export',
   'semantic.back': 'Games',
