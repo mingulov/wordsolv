@@ -9,3 +9,4 @@ export {
   VECTOR_ASSET_VERSION, parseVectors, serializeVectors, similarityTo, type VectorSet,
 } from './vectors'
 export { RankCache, predictedRanks } from './ranks'
+export { rankCandidates, scoreCandidates, type FitObservation } from './fit'
