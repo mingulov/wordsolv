@@ -1,0 +1,16 @@
+{
+  "name": "@wordsolv/semantic-core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

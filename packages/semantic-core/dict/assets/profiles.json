@@ -1,0 +1,11 @@
+[
+  {
+    "id": "contextno-ru",
+    "language": "ru",
+    "feedback": "rank",
+    "lexicon": { "pos": "noun", "lemmaOnly": true, "foldYo": true },
+    "rankUniverse": 21000,
+    "priorLambda": 0.25,
+    "exploreThreshold": 500
+  }
+]
