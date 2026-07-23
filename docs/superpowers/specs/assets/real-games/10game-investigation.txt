@@ -1,0 +1,19 @@
+вулкан     freq=  3227  FAIL best=275  exploit@24  rejects=2
+пингвин    freq=  7098  FAIL best=14  exploit@18  rejects=2
+рецепт     freq=   662  SOLVED@32  exploit@4  rejects=0
+маяк       freq=  3886  FAIL best=14  exploit@24  rejects=1
+скелет     freq=  4432  SOLVED@20  exploit@7  rejects=0
+зонтик     freq=  5886  FAIL best=3  exploit@21  rejects=1
+тюрьма     freq=  1824  SOLVED@41  exploit@-1  rejects=1
+пирамида   freq=  2419  FAIL best=41  exploit@8  rejects=1
+гроза      freq=  4842  SOLVED@26  exploit@11  rejects=0
+аквариум   freq=  2632  SOLVED@42  exploit@-1  rejects=1
+
+--- Notes ---
+Blind-played against live контекстно.рф with the shipped assets (lambda=0.06 + suggestable filter),
+limit=1 greedy (auto-play). limit=1 walks the whole probe ladder before fit, so this UNDERCOUNTS
+the app (limit=10, user picks relevant fit words): a prefer-fit replay solved вулкан and зонтик too
+(~7/10 effective) and tightened the misses (пингвин best 14->4, маяк 14->6).
+The genuine misses (зонтик#37, маяк#42 in our final ranking) are the surrogate ceiling (araneum
+rho~0.65 vs the game's model): no reweighting (1/r, 1/r^2, lambda=0, nearest-neighbour) rescues them.
+The real lever is a closer embedding (fastText cc.ru.300 — spec section 12 open question 1).
