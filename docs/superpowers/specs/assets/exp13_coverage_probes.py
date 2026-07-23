@@ -11,10 +11,13 @@ the solver becomes strong). By approximate symmetry that is: s is in p's top-300
 neighbours. So each probe covers a set, and we want the k sets whose union covers the
 most probability mass of likely secrets. Classic greedy max-coverage.
 """
+import os
 import gzip, json
 import numpy as np
 
-SC = "/tmp/claude-1000/-home-user-src-m-wordlesolv/f4230b32-b350-4b3e-94ef-1c43b355ac4a/scratchpad"
+# Working directory holding the downloaded models (navec.tar, araneum.vec.gz)
+# and firstwords.json. Defaults to the current directory; override with SC=...
+SC = os.environ.get("SC", ".")
 norm = lambda w: w.strip().lower().replace("ё", "е")
 CYR = set("абвгдежзийклмнопрстуфхцчшщъыьэюя-")
 gold = {norm(k): [norm(x) for x in v] for k, v in json.load(open(f"{SC}/firstwords.json")).items()}

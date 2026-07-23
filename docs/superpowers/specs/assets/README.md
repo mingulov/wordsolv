@@ -43,8 +43,10 @@ curl -Lo araneum.vec.gz https://rusvectores.org/static/models/rusvectores4/arane
 ./venv/bin/python exp11b_prior.py
 ```
 
-Paths inside the scripts point at the scratchpad they were written in; adjust `SC` before
-running. They also read the vendored `packages/solver-core/dict/raw/` word lists.
+The scripts read their inputs from `$SC`, which defaults to the current directory — so run
+them from wherever you downloaded the two models, or set `SC=/path/to/models`. A few also
+read the vendored `packages/solver-core/dict/raw/` word lists, and `firstwords.json` is the
+gold fixture in this directory (`contextno-gold-40x300.json`; copy or symlink it in).
 
 `araneum_upos_skipgram_300_2_2018` is CC-BY 4.0 (RusVectōrēs) and requires attribution;
 navec is MIT. Both are **build-time only** — neither is shipped, and only araneum's

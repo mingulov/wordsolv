@@ -8,10 +8,13 @@ Computes the rank matrix ONCE per trial and reuses it across all lambdas
 Goal: keep every word a candidate (recall) while recovering the precision that
 the 21k-cutoff run achieved (66% top-10 at N=8, exp10).
 """
+import os
 import gzip, json
 import numpy as np
 
-SC = "/tmp/claude-1000/-home-user-src-m-wordlesolv/f4230b32-b350-4b3e-94ef-1c43b355ac4a/scratchpad"
+# Working directory holding the downloaded models (navec.tar, araneum.vec.gz)
+# and firstwords.json. Defaults to the current directory; override with SC=...
+SC = os.environ.get("SC", ".")
 norm = lambda w: w.strip().lower().replace("ё", "е")
 CYR = set("абвгдежзийклмнопрстуфхцчшщъыьэюя-")
 gold = {norm(k): [norm(x) for x in v] for k, v in json.load(open(f"{SC}/firstwords.json")).items()}

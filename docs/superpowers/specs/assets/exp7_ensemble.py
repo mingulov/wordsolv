@@ -4,11 +4,14 @@ own neighbour lists (/first-words) for 40 secrets x 300 ranked words.
 This is the decisive measurement: how faithfully can we reproduce контекстно.рф's
 ranking without their model? Metric: overlap@k and Spearman on the game's top-300.
 """
+import os
 import gzip, json
 import numpy as np
 from navec import Navec
 
-SC = "/tmp/claude-1000/-home-user-src-m-wordlesolv/f4230b32-b350-4b3e-94ef-1c43b355ac4a/scratchpad"
+# Working directory holding the downloaded models (navec.tar, araneum.vec.gz)
+# and firstwords.json. Defaults to the current directory; override with SC=...
+SC = os.environ.get("SC", ".")
 norm = lambda w: w.strip().lower().replace("ё", "е")
 gold = {norm(k): [norm(x) for x in v] for k, v in json.load(open(f"{SC}/firstwords.json")).items()}
 pool = [norm(w) for w in json.load(open(f"{SC}/pool_v1.json"))]
